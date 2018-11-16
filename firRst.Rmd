@@ -1,0 +1,230 @@
+---
+title: "A first R anaysis"
+author: "Guido Biele"
+date: "16 november 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+This document aims to povide a shirt introduction into statistical analysis with R. The assumption is, that the reader is already familiar with basic concepts in R and the Rstuido IDE, and has some basic knowledge about statistics, for example from using SPSS. The goal here is to show how one can
+
+* open an SPSS file
+* merge seperate data sets
+* visually inspect the data
+* do a simple data reduction through an explatory factor analysis
+* estimate the association between an exposure and an outcome with a linear regregssion
+* visualize the results of this regression.
+
+## Packages
+
+The name R refers at the same time to 3 things:
+
+1. A programming language
+2. A software for statistical analyses
+3. An ecosystem of _packages_ that implement different statistical analyses.
+
+R packages are written (typically by using R, the programming language) by researchers and available for free. These packages are crucial, because the capabilities of The basic R software are limited.
+
+There are thousands of R packages. Therefore, CRAN [task view web sites](https://cran.rstudio.com/web/views/) are usful to give an overview about R packages for different application areas. CRAN stands for "Comprehensive R Archive Network".
+
+
+For this introduction we will use following packes:
+
+* `haven` allows to read SPSS (or stata) data into R
+* `ggplot` facilitates plotting 
+* `psych` is a package for factor analysis and related things
+* `sjPlot` makes plotting of regression analysis results easy
+
+Installing packages is easy!
+
+```{r, eval=FALSE}
+install.packages("haven")
+install.packages("ggplot2")
+install.packages("psych")
+install.packages("sjplot")
+```
+
+One can also install multiple packages simulataneously as follows `install.packages(c("haven","psych"))`.
+
+## Loading data
+
+The problem we are looking at is the association between Parenting Style and child mental health symptoms. More specifically, we look at the association between self reported Parenting Style of well educated Norwegian mothers at child age 5 years and opposional behavior as well as mood and feeling at age 8. This data can be obtained from moba questionnaires 5 and 8.
+
+If these data are available in SPSS (or stata) format, we can read them with the `haven` package, which we wirst have to load befor we can use it:
+
+```{r}
+library(haven)
+```
+
+All packages comn with a documentation, and if one is lucky also with one or more _vignettes_, which are tutorial-style documents that show how the functions in the package can be used. This and more information about the packages can be found at https://cran.rstudio.com/web/packages/haven/. For other packages, just replace "haven" with the name of the package you are interested in.
+
+
+OK, now we can load the data:
+```{r}
+data_directory = "data/"
+Q5aar = read_sav(paste0(data_directory,
+                        "PDB439_Skjema5aar_v10.sav"))
+Q5aar = data.frame(Q5aar)
+```
+
+So what have we done here?
+We first created a new variable `data_directory` and set it to the path to the directory where the data files are. Then, when loading the data into the data.frame `Q5aar`, we collated the path to the directory with the name of the data file by using the `paste0`command.
+
+The reason for doing this is that the code becomes a bit easier to read (still not great ). For the same reason, I made a line break at the end of `Q5aar = read_sav(paste0(data_directory,`.
+
+Note that if we would already be in the same directory as the data file, we could just have written `Q5aar = read_sav("PDB439_Skjema5aar_v10.sav")`. You can use the commands `getwd()` and `setwd()` to check and set you working directory (wd).
+
+Next we select the variables we need. This are the pregancy ID and the child number, as well as the items for measuring parental style (we get SPSS variable names from [here](https://www.fhi.no/globalassets/dokumenterfiler/studier/moba/dokumenter/instrument-documentation-q-5year.pdf)). 
+
+```{r}
+Q5aar = Q5aar[,c("PREG_ID_439","BARN_NR",
+                 paste0("LL",526:534))]
+names(Q5aar)
+```
+
+Ok, these variable names are not very clear, lets rename them:
+
+```{r}
+names(Q5aar)[3:11] = paste0("PS.item.",1:9)
+names(Q5aar)
+```
+
+It is important to understan the coding of the variables. The haven package makes SPSS' _Variable label_ and _Value label_ information available as attributes of the variables in the data.frame. We can access those as follows:
+
+```{r}
+attr(Q5aar$PS.item.1,"label")
+attr(Q5aar$PS.item.1,"labels")
+```
+
+Here we see one anoying detail of SPSS Moba data: If the mother has ticked more than one box, the data are for our purposes missing, and not zero. We need to fix that.
+
+To do this, we do a quick for loop:
+
+```{r}
+item_levels = attr(Q5aar$PS.item.1,"lables")[-1]
+item_names = names(Q5aar)[-c(1,2)]
+item_quest = c()
+for (v in item_names) {
+  item_quest = c(item_quest,
+                 strsplit(attr(Q5aar[,v],"label"),
+                          split = ";")[[1]][2])
+  attr(Q5aar[, v],"labels") = attr(Q5aar[, v],"labels")[-1]
+  # need to use the "which", otherwise R stumbles over missing values
+  value_is_0 = which(Q5aar[,v] == 0)
+  Q5aar[value_is_0, v] = NA
+}
+table(as_factor(Q5aar$PS.item.1))
+table(addNA(as_factor(Q5aar$PS.item.1)))
+```
+
+There is lots of missing data, probably because MoBa changed the Parenting Style items throughout.
+
+Lets look a little closer at the missing data:
+
+```{r}
+is_missing = is.na(Q5aar[,-c(1,2)])
+hist(rowSums(is_missing))
+```
+
+Indeed there is a substantial number of cases for which als Parenting style itmes are missing. Let's remove those participants. In fact, to facilitate any further analysis, we'll only use the complete cases.
+```{r}
+Q5aar = Q5aar[complete.cases(Q5aar),]
+```
+
+
+## A quick exploratory factor analysis of parenting style items in MoBa
+
+Out goal is to reduce the 9 items to a smaller set of variables describing parenting style. One way to do this is to use exploratory factor analysis (EFA) to learn the factor structure of the data. As a first step we'll check how many factors we need, using the `fa.parallel.poly` command from the `psych` package. As with many things in R, using up to date methods is not hard, as you'll see. The problem is more in knowing that these methods exist. If you do not know which method to use, try googling it!
+
+One thing we need to specify is that polychoric correlations are used, because we have ordinal data.
+
+```{r}
+library(psych)
+describe(Q5aar[,-c(1,2)])
+fa.parallel(Q5aar[,-c(1,2)], cor = "poly")
+```
+
+4 factors. I had hoped fewer, but lets continue and do an exploratory factor analysis.
+
+```{r}
+fa_ps = fa(Q5aar[,-c(1,2)],
+           nfactors = 4, 
+           cor = "poly")
+fa_ps
+```
+
+We can at first look at the RMSEA. The cvalue is 0.01, which is vary good. however, we also see that factors 1, 3 and 4 have high correlations with each other. lets try with only 2 fatcors.
+
+```{r}
+fa_ps = fa(Q5aar[,-c(1,2)],
+           nfactors = 2, 
+           cor = "poly")
+fa_ps
+```
+
+This are the factor loadings: 
+
+```{r}
+factor_loadings = loadings(fa_ps)
+par(mar = c(5,3,1,1))
+xs = barplot(t(factor_loadings),
+             beside = T, 
+             xaxt = "n")
+axis(1,
+     at = colMeans(xs),
+     labels = paste0("Item\n",1:9), lty = 0)
+```
+
+This is pretty clear, in that there are no items that have a high loading for both factors. To understand the factors, we look at the associated items.
+
+```{r}
+simple_loadings = apply(factor_loadings,
+                        1,
+                        function(x)
+                          (abs(x) == max(abs(x))))
+items_factor1 = which(simple_loadings[1,] == T)
+items_factor2 = which(simple_loadings[2,] == T)
+
+cat("FACTOR 1 \n")
+cat(paste(item_quest[items_factor1],
+          collapse = "\n"))
+
+cat("\n\nFACTOR 2 \n")
+cat(paste(item_quest[items_factor2],
+          collapse = "\n"))
+```
+```{r}
+Q8aar = read_sav(paste0(data_directory,
+                        "PDB439_Skjema8aar_v10.sav"))
+lbs = unlist(lapply(Q8aar, function(x) attr(x,"label")))
+Q8aar = data.frame(Q8aar[,c("PREG_ID_439","BARN_NR","VERSJON_SKJEMA_8AAR_TBL1","AGE_MTHS_Q8AAR",
+                            paste("NN",c(12,68:80,234,211:226,227:233,374,239:241,242:250,272,
+                                         375:379,388:396,254:257,380:384,36:67,111:149,24,25),sep = ""))])
+Q8aar = clean_vars(Q8aar)
+
+HPs = c("PsyM","Lang","Hyp","Att","ASD","BEH","Emo","Oth")
+setnames(Q8aar,paste0("NN",c(68:80)),paste0("SMFQ.i",1:13,"_8y"))
+setnames(Q8aar,paste0("NN",c(227:233,374)),paste0("SPRAAK20.i",1:8,"_8y"))
+setnames(Q8aar,paste0("NN",c(211:226)),paste0("CCCs.i",1:16,"_8y"))
+
+for (item in paste0("CCCs.i",c(10:16),"_8y")) 
+  Q8aar[[item]] = abs(Q8aar[[item]]-5)
+
+setnames(Q8aar,paste0("NN",c(234)),"EnjoySchool_8y")
+setnames(Q8aar,paste("NN",c(12,272,36:67),sep = ""),
+         c("class","n_children_8y",
+           paste(as.vector(sapply(HPs,function (x) rep(x,4))),
+                 c("","now","earlier","specialist"),"8y",sep = "_")))
+setnames(Q8aar,c("VERSJON_SKJEMA_8AAR_TBL1","AGE_MTHS_Q8AAR"),c("version_8y","cAge_8y"))
+setnames(Q8aar,paste("NN",c(111:118),sep = ""), paste("CD.i",1:8,"_8y",sep = ""))
+setnames(Q8aar,paste("NN",c(137:144),sep = ""), paste("OD.i",1:8,"_8y",sep = ""))
+setnames(Q8aar,paste("NN",c(119:136),sep = ""), paste("ADHD.i",1:18,"_8y",sep = ""))
+setnames(Q8aar,paste("NN",c(145:149),sep = ""), paste("SCARED.i",1:5,"_8y",sep = ""))
+
+```
+
