@@ -47,6 +47,7 @@ install.packages("haven")
 install.packages("ggplot2")
 install.packages("psych")
 install.packages("sjplot")
+install.packages("VIM")
 ```
 
 One can also install multiple packages simulataneously as follows `install.packages(c("haven","psych"))`.
@@ -59,13 +60,15 @@ If these data are available in SPSS (or stata) format, we can read them with the
 
 ```{r}
 library(haven)
+library(VIM)
+library(data.table)
 ```
 
 All packages comn with a documentation, and if one is lucky also with one or more _vignettes_, which are tutorial-style documents that show how the functions in the package can be used. This and more information about the packages can be found at https://cran.rstudio.com/web/packages/haven/. For other packages, just replace "haven" with the name of the package you are interested in.
 
 
 OK, now we can load the data:
-```{r}
+```{r, eval = F}
 data_directory = "data/"
 Q5aar = read_sav(paste0(data_directory,
                         "PDB439_Skjema5aar_v10.sav"))
@@ -81,11 +84,17 @@ Note that if we would already be in the same directory as the data file, we coul
 
 Next we select the variables we need. This are the pregancy ID and the child number, as well as the items for measuring parental style (we get SPSS variable names from [here](https://www.fhi.no/globalassets/dokumenterfiler/studier/moba/dokumenter/instrument-documentation-q-5year.pdf)). 
 
-```{r}
+```{r, eval = F}
 Q5aar = Q5aar[,c("PREG_ID_439","BARN_NR",
                  paste0("LL",526:534))]
 names(Q5aar)
 ```
+
+```{r, echo=F}
+load("data/Q5aar.Rdata")
+names(Q5aar)
+```
+
 
 Ok, these variable names are not very clear, lets rename them:
 
@@ -198,33 +207,163 @@ cat("\n\nFACTOR 2 \n")
 cat(paste(item_quest[items_factor2],
           collapse = "\n"))
 ```
+
+
+This looks as if there is one factor around positive reinforcement and communication with the child. Lets call this _positive parenting_. The other factor appears to be about the inability to follow through with threats of punishment, lets call this _bla bla parenting_ ;-). If we scroll back and look at correlation of the two factors, it looks as if _positive parenting_ is associated with the abaility to follow through with threats.
+
+
+Now, if we want to use the parenting dimensions as predictors, we need to extract the factor scores. Factor scores are likely stored in the `fa_ps` object, which has the results of out exploratory factor analysis. If we want to know what this object contains, we can simply click on in in the "Environment" tab at the right hand side of the RStudio IDE.
+
 ```{r}
+factor_scores = fa_ps$scores
+colnames(factor_scores) = c("positive","blabla")
+```
+
+Lets quickly look at the factor scores, before we add them to the data.frame with teh 5 year data.:
+
+```{r}
+par(mfrow = c(1,2))
+hist(factor_scores[,1],
+     breaks = 25,
+     main = "positive")
+hist(factor_scores[,2],
+     breaks = 25,
+     main = "bla bla")
+Q5aar = cbind(Q5aar,factor_scores)
+
+```
+
+If we had a great parenting scale, the histograms should look normally distributed. Especially the histogram for positive parenting deviates from that. It shows that (a) there are a few extreme outliers to the left and (b) there seems to be someting like a ceiling effect. That is, a good number of mothers report to be **VERY** positive in their parenting. This is another instance wehre it would be great to have a social desirability scale in MoBa.
+
+Anyhow, lets continue and put together outcome data.
+For this, we load the MoBa 8 years data file.
+
+```{r, eval = F}
+data_directory = "data/"
 Q8aar = read_sav(paste0(data_directory,
                         "PDB439_Skjema8aar_v10.sav"))
-lbs = unlist(lapply(Q8aar, function(x) attr(x,"label")))
-Q8aar = data.frame(Q8aar[,c("PREG_ID_439","BARN_NR","VERSJON_SKJEMA_8AAR_TBL1","AGE_MTHS_Q8AAR",
-                            paste("NN",c(12,68:80,234,211:226,227:233,374,239:241,242:250,272,
-                                         375:379,388:396,254:257,380:384,36:67,111:149,24,25),sep = ""))])
-Q8aar = clean_vars(Q8aar)
+Q8aar = Q8aar[,c("PREG_ID_439","BARN_NR",
+                 paste("NN",c(68:80,        # SMFQ
+                              211:226,      # CCC-2 sort
+                              227:233, 374, # Språåk 20
+                              111:118,      # CD
+                              119:136,      # ADHD
+                              137:144),     # OD
+                       sep = ""))]
 
-HPs = c("PsyM","Lang","Hyp","Att","ASD","BEH","Emo","Oth")
-setnames(Q8aar,paste0("NN",c(68:80)),paste0("SMFQ.i",1:13,"_8y"))
-setnames(Q8aar,paste0("NN",c(227:233,374)),paste0("SPRAAK20.i",1:8,"_8y"))
-setnames(Q8aar,paste0("NN",c(211:226)),paste0("CCCs.i",1:16,"_8y"))
+Q8aar = data.frame(Q8aar)
+```
 
+```{r, echo=F}
+load("data/Q8aar.Rdata")
+```
+
+Now we are coming to a part, which always takes more time than we would wish: cleaning the data. We wqant to calculate sum-scores, but this is compliated by two facts: MoBa data come with 
+
+* `0` instead of `NA` for data with unambiguous responses
+* all scales start at 1
+* some of the data are missing.
+
+We will adress these problems in that order, starting with renaming some variables. To make this easier, we'll create simple functions where this is useful.
+
+First we ranme all variables:
+
+```{r}
+
+rename_variables = function(df,old_names,new_names) {
+  names(df)[names(df) %in% old_names] = new_names
+  return(df)
+}
+
+Q8aar = rename_variables(Q8aar,
+                         paste0("NN",68:80),
+                         paste0("SMFQ.i",1:13,"_8y"))
+Q8aar = rename_variables(Q8aar,
+                         paste0("NN",c(227:233,374)),
+                         paste0("SPRAAK20.i",1:8,"_8y"))
+Q8aar = rename_variables(Q8aar,
+                         paste0("NN",211:226),
+                         paste0("CCCs.i",1:16,"_8y"))
 for (item in paste0("CCCs.i",c(10:16),"_8y")) 
-  Q8aar[[item]] = abs(Q8aar[[item]]-5)
+  Q8aar[,item] = abs(Q8aar[,item]-5)
+Q8aar = rename_variables(Q8aar,
+                         paste0("NN",111:118),
+                         paste0("CD.i",1:8,"_8y"))
+Q8aar = rename_variables(Q8aar,
+                         paste0("NN",119:136),
+                         paste0("ADHD.i",1:18,"_8y"))
+Q8aar = rename_variables(Q8aar,
+                         paste0("NN",137:144),
+                         paste0("OD.i",1:8,"_8y"))
+Q8aar = rename_variables(Q8aar,
+                         paste0("NN",145:149),
+                         paste0("SCARED.i",1:5,"_8y"))
+```
 
-setnames(Q8aar,paste0("NN",c(234)),"EnjoySchool_8y")
-setnames(Q8aar,paste("NN",c(12,272,36:67),sep = ""),
-         c("class","n_children_8y",
-           paste(as.vector(sapply(HPs,function (x) rep(x,4))),
-                 c("","now","earlier","specialist"),"8y",sep = "_")))
-setnames(Q8aar,c("VERSJON_SKJEMA_8AAR_TBL1","AGE_MTHS_Q8AAR"),c("version_8y","cAge_8y"))
-setnames(Q8aar,paste("NN",c(111:118),sep = ""), paste("CD.i",1:8,"_8y",sep = ""))
-setnames(Q8aar,paste("NN",c(137:144),sep = ""), paste("OD.i",1:8,"_8y",sep = ""))
-setnames(Q8aar,paste("NN",c(119:136),sep = ""), paste("ADHD.i",1:18,"_8y",sep = ""))
-setnames(Q8aar,paste("NN",c(145:149),sep = ""), paste("SCARED.i",1:5,"_8y",sep = ""))
+Next we replace all 0 values with NA and subtract 1 from all items. We use the `grep` command, which makes it easy for us to find all variables that match a particular pattern. We also temporarily create a new `data.frame` tmp_items, in which we keep the item data. 
 
+```{r}
+all_items = grep("\\.i[0-9]",names(Q8aar), value = T)
+tmp_items = Q8aar[,all_items]
+tmp_items[tmp_items == 0] = NA
+tmp_items = tmp_items-1
+```
+
+Now we need to make sum scores. Lets see, if there are any missing data:
+
+```{r}
+colSums(is.na(tmp_items))
+```
+
+
+There are mssing data. We can use imputation to replace missing data. I prefer to do this only for cases, for which we have at least 50% of the data. So we remove participants with more than 50% missing data.
+
+```{r}
+proportion_missing = rowMeans(is.na(tmp_items))
+Q8aar = Q8aar[proportion_missing < .5,]
+tmp_items = tmp_items[proportion_missing < .5,]
+```
+
+Now we use the function `hotdeck`from the package `VIM` to do a k-nearest neighbourgh imputation. (`hotdeck` is fast). Other approaches like nearest neigbourg imputation of multiple chained imputation are more accurate, by they are to slow when analysing bigger data-sets in a turorial.
+
+```{r}
+tmp_items_imputed = hotdeck(as.matrix(tmp_items))
+tmp_items_imputed = tmp_items_imputed[,1:ncol(tmp_items)]
+```
+
+Finally, we can calculate sum scores.
+
+```{r}
+scales = c("OD","ADHD","CD","SMFQ","CCC","SPRAAK")
+sum_scores = matrix(NA,
+                    nrow = nrow(Q8aar),
+                    ncol = length(scales))
+colnames(sum_scores) = scales
+par(mfrow = c(2,3))
+for (s in scales) {
+  items = grep(s,names(tmp_items_imputed), value = T)
+  sum_scores[,s] = rowSums(tmp_items_imputed[,items])
+  hist(sum_scores[,s],
+       main = s,
+       ylab = "")
+}
+head(sum_scores)
+```
+
+This looks more or less as expected. Now we put the Q8aar data together, and merge 5 and 8 years data.
+
+```{r}
+Q8aar = cbind(Q8aar, sum_scores)
+my_data = merge(Q5aar[,c("PREG_ID_439","BARN_NR",colnames(factor_scores))],
+                Q8aar[,c("PREG_ID_439","BARN_NR",scales)])
+head(my_data)
+my_data$positive = scale(my_data$positive)
+my_data$blabla = scale(my_data$blabla)
+my_data = my_data[my_data$positive > -4,]
+```
+
+Finally, we can do simple linear regression models:
+```{r}
+summary(lm(OD ~positive + blabla,my_data))
 ```
 
