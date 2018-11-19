@@ -1,5 +1,5 @@
 ---
-title: "A first R anaysis"
+title: "A first R analysis"
 author: "Guido Biele"
 date: "16 november 2018"
 output: html_document
@@ -61,7 +61,6 @@ If these data are available in SPSS (or stata) format, we can read them with the
 ```{r}
 library(haven)
 library(VIM)
-library(data.table)
 ```
 
 All packages comn with a documentation, and if one is lucky also with one or more _vignettes_, which are tutorial-style documents that show how the functions in the package can be used. This and more information about the packages can be found at https://cran.rstudio.com/web/packages/haven/. For other packages, just replace "haven" with the name of the package you are interested in.
@@ -103,7 +102,7 @@ names(Q5aar)[3:11] = paste0("PS.item.",1:9)
 names(Q5aar)
 ```
 
-It is important to understan the coding of the variables. The haven package makes SPSS' _Variable label_ and _Value label_ information available as attributes of the variables in the data.frame. We can access those as follows:
+It is important to understan the coding of the variables. The `haven` package makes SPSS' _Variable label_ and _Value label_ information available as attributes of the variables in the data.frame. We can access those as follows:
 
 ```{r}
 attr(Q5aar$PS.item.1,"label")
@@ -128,7 +127,14 @@ for (v in item_names) {
   Q5aar[value_is_0, v] = NA
 }
 table(as_factor(Q5aar$PS.item.1))
-table(addNA(as_factor(Q5aar$PS.item.1)))
+```
+
+Missing data is always a problem, especially with questionnaire data from long lasting studies such as MoBa. Lets look at missing data by schowing a table that counts them:
+
+```{r}
+table_plus_missing = table(addNA(as_factor(Q5aar$PS.item.1)))
+barplot(table_plus_missing)
+table_plus_missing
 ```
 
 There is lots of missing data, probably because MoBa changed the Parenting Style items throughout.
@@ -148,8 +154,14 @@ Q5aar = Q5aar[complete.cases(Q5aar),]
 
 ## A quick exploratory factor analysis of parenting style items in MoBa
 
-Out goal is to reduce the 9 items to a smaller set of variables describing parenting style. One way to do this is to use exploratory factor analysis (EFA) to learn the factor structure of the data. As a first step we'll check how many factors we need, using the `fa.parallel.poly` command from the `psych` package. As with many things in R, using up to date methods is not hard, as you'll see. The problem is more in knowing that these methods exist. If you do not know which method to use, try googling it!
+Our goal is to reduce the 9 items to a smaller set of variables describing parenting style. One way to do this is to use exploratory factor analysis (EFA) to learn the factor structure of the data. As a first step we'll check how many factors we need, using the `fa.parallel.poly` command from the `psych` package. 
 
+As with many things in R, using up to date methods is not hard, as you'll see. The problem is more in knowing that these methods exist. If you do not know which method to use, try googling it. The challange is in finding out which of the many similar packages one should use. Here are  a few tipps:
+
+* google [R tutorial exploratory factor analysis](https://www.google.com/search?q=R+tutorial+exploratory+factor+analysis), 
+* If a paper about a package is published in the [Journal of Statistical Software](https://www.jstatsoft.org), this is probably one of the better packages. dOn't worry about the name of the Journal! The articles typically include a tutorial about how to use the key functions.
+
+Now lets move on with the exploratory factor analysis.
 One thing we need to specify is that polychoric correlations are used, because we have ordinal data.
 
 ```{r}
@@ -167,14 +179,7 @@ fa_ps = fa(Q5aar[,-c(1,2)],
 fa_ps
 ```
 
-We can at first look at the RMSEA. The cvalue is 0.01, which is vary good. however, we also see that factors 1, 3 and 4 have high correlations with each other. lets try with only 2 fatcors.
-
-```{r}
-fa_ps = fa(Q5aar[,-c(1,2)],
-           nfactors = 2, 
-           cor = "poly")
-fa_ps
-```
+We can at first look at the RMSEA. The value is 0.06, which is not great but OK.
 
 This are the factor loadings: 
 
@@ -183,40 +188,76 @@ factor_loadings = loadings(fa_ps)
 par(mar = c(5,3,1,1))
 xs = barplot(t(factor_loadings),
              beside = T, 
-             xaxt = "n")
+             xaxt = "n",
+             col = c("green2","yellow","blue","red"))
 axis(1,
      at = colMeans(xs),
      labels = paste0("Item\n",1:9), lty = 0)
 ```
 
-This is pretty clear, in that there are no items that have a high loading for both factors. To understand the factors, we look at the associated items.
+This is not very clear, because a number of items (especially item 3) have high loadings for multiple factors. Moreover, items 1 and 8 stand apart. Lets try to redo this without these items.
+
+
+```{r}
+fa.parallel(Q5aar[,-c(1,2,3,10)], cor = "poly")
+```
+
+OK, now we only need 3 or maybe only 2 factors. Lets first try with 2.
+
+```{r}
+fa_ps = fa(Q5aar[,-c(1,2,3,10)],
+           nfactors = 2, 
+           cor = "poly")
+fa_ps
+```
+
+RMSEA and even more the TLI suggest that 2 factors hould be OK.
+
+This are the new factor loadings: 
+
+```{r}
+factor_loadings = loadings(fa_ps)
+par(mar = c(5,3,1,1))
+xs = barplot(t(factor_loadings),
+             beside = T, 
+             xaxt = "n",
+             col = c("green2","yellow"))
+axis(1,
+     at = colMeans(xs),
+     labels = paste0("Item\n",(1:9)[-c(1,8)]), lty = 0)
+```
+
+This looks like a clear factor structure. Lets look at the items to understand what those factor might measure.
 
 ```{r}
 simple_loadings = apply(factor_loadings,
                         1,
                         function(x)
                           (abs(x) == max(abs(x))))
+item_quest_reduced = item_quest[-c(1,8)]
+
 items_factor1 = which(simple_loadings[1,] == T)
 items_factor2 = which(simple_loadings[2,] == T)
 
 cat("FACTOR 1 \n")
-cat(paste(item_quest[items_factor1],
+cat(paste(item_quest_reduced[items_factor1],
           collapse = "\n"))
 
 cat("\n\nFACTOR 2 \n")
-cat(paste(item_quest[items_factor2],
+cat(paste(item_quest_reduced[items_factor2],
           collapse = "\n"))
+
 ```
 
 
-This looks as if there is one factor around positive reinforcement and communication with the child. Lets call this _positive parenting_. The other factor appears to be about the inability to follow through with threats of punishment, lets call this _bla bla parenting_ ;-). If we scroll back and look at correlation of the two factors, it looks as if _positive parenting_ is associated with the abaility to follow through with threats.
+This looks as if there is one factor around positive reinforcement and communication with the child. Lets call this _positive parenting_. The other factor appears to be about the inability to follow through with threats of punishment, lets call this _inconsistent parenting_ ;-). If we scroll back and look at correlation of the two factors, it looks as if _positive parenting_ has a weak negative correlation with _inconsistent parenting_.
 
 
 Now, if we want to use the parenting dimensions as predictors, we need to extract the factor scores. Factor scores are likely stored in the `fa_ps` object, which has the results of out exploratory factor analysis. If we want to know what this object contains, we can simply click on in in the "Environment" tab at the right hand side of the RStudio IDE.
 
 ```{r}
 factor_scores = fa_ps$scores
-colnames(factor_scores) = c("positive","blabla")
+colnames(factor_scores) = c("positive","inconsistent")
 ```
 
 Lets quickly look at the factor scores, before we add them to the data.frame with teh 5 year data.:
@@ -228,7 +269,7 @@ hist(factor_scores[,1],
      main = "positive")
 hist(factor_scores[,2],
      breaks = 25,
-     main = "bla bla")
+     main = "inconsistent")
 Q5aar = cbind(Q5aar,factor_scores)
 
 ```
@@ -355,15 +396,198 @@ This looks more or less as expected. Now we put the Q8aar data together, and mer
 ```{r}
 Q8aar = cbind(Q8aar, sum_scores)
 my_data = merge(Q5aar[,c("PREG_ID_439","BARN_NR",colnames(factor_scores))],
-                Q8aar[,c("PREG_ID_439","BARN_NR",scales)])
+                Q8aar[,c("PREG_ID_439","BARN_NR",scales)],
+                by = c("PREG_ID_439","BARN_NR"))
 head(my_data)
-my_data$positive = scale(my_data$positive)
-my_data$blabla = scale(my_data$blabla)
+my_data$positive = as.numeric(scale(my_data$positive))
+my_data$inconsistent = as.numeric(scale(my_data$inconsistent))
 my_data = my_data[my_data$positive > -4,]
 ```
 
 Finally, we can do simple linear regression models:
 ```{r}
-summary(lm(OD ~positive + blabla,my_data))
+ADHD_model = lm(ADHD ~ positive + inconsistent, my_data)
+summary(ADHD_model)
 ```
+
+This is exciting! Parenting style at age 5 predicts ADHD symptoms at age 8!
+
+Lets plot this for AHDHD and the other outcomes!
+
+```{r}
+library(margins)
+par(mar=c(3,3,2,1), mgp=c(2,.5,0), tck=-.01)
+pcf = function(m) {
+  bci = cbind(coef(m),
+              confint(m))
+  y = 1:nrow(bci)
+  par(mar = c(3,10,1,1))
+  plot(bci[,1],y,
+       xlim = range(bci),
+       pch = 16,
+       yaxt = "n",
+       ylab = "",
+       xlab = "coefficient value")
+  segments(x0 = bci[,2], x1 = bci[,3], y0 = y)
+  axis(2,at = y, labels = rownames(bci), las = 2)
+  abline(v = 0, lty = 2, col = "red")
+}
+
+par(mfrow = c(2,2))
+hist(residuals(ADHD_model))
+pcf(ADHD_model)
+par(mar=c(3,3,2,1), mgp=c(2,.5,0), tck=-.01)
+cplot(ADHD_model,
+      "positive",
+      what = "prediction",
+      ylim = quantile(my_data$ADHD,c(.025,.975)))
+cplot(ADHD_model,
+      "inconsistent",
+      what = "prediction",
+      ylim = quantile(my_data$ADHD,c(.025,.975)))
+```
+
+This shows a linear effect of parenting style. Is it possible that there are non-linear effects? We can easyli test this by adding squared terms to the model:
+
+```{r}
+ADHD_model = lm(ADHD ~ poly(positive,2) + poly(inconsistent,2), my_data)
+summary(ADHD_model)
+par(mfrow = c(2,2))
+hist(residuals(ADHD_model))
+pcf(ADHD_model)
+par(mar=c(3,3,2,1), mgp=c(2,.5,0), tck=-.01)
+cplot(ADHD_model,
+      "positive",
+      what = "prediction",
+      ylim = quantile(my_data$ADHD,c(.025,.975)))
+cplot(ADHD_model,
+      "inconsistent",
+      what = "prediction",
+      ylim = quantile(my_data$ADHD,c(.025,.975)))
+```
+
+To see how useful it can be to "program" in R, lets plot the results for all outcomes. First, we consolidate all plotting into one function:
+
+```{r}
+plot_regression_results = function(m,outcome) {
+  par(mar=c(3,3,2,1), mgp=c(2,.5,0), tck=-.01)
+  par(mfrow = c(2,2))
+  hist(residuals(m))
+  pcf(m)
+  title(outcome)
+  par(mar=c(3,3,2,1), mgp=c(2,.5,0), tck=-.01)
+  cplot(m,
+        "positive",
+        what = "prediction",
+        ylim = quantile(my_data[,outcome],c(.025,.975)))
+  title(outcome)
+  cplot(m,
+        "inconsistent",
+        what = "prediction",
+        ylim = quantile(my_data[,outcome],c(.025,.975)))
+  title(outcome)
+}
+```
+
+```{r}
+outcomes = c("OD","CD","SMFQ","CCC","SPRAAK")
+for (o in outcomes) {
+  reg_mod_str = paste(o,"~poly(positive,2) + poly(inconsistent,2)")
+  lm_fit = lm(as.formula(reg_mod_str),
+              data = my_data)
+  plot_regression_results(lm_fit,o)
+}
+```
+
+
+All these analyses suggest that mothers who report inconsistent parenting at child age 3 (they do not follow trough with a threatened punishment) later report more mental health problems with their children. There are several reasons that we should not immediatly endorse a causal interpretation. This could in fact be revers causation, if children with problems at age 8 also had problems at age 5, and it was these problems at age five that caused inconsistent parenting. Some would certainly argue tha this is all genetic: the same genes that are reponsinle for mental health problems also cause inconsistent parenting (e.g. parents with mental health problems might be more prone to be inconsistent.). Genes are an example of confounders: common causes of exposure and outcomes. We do not have genetic information here, but we can easily think of other pontial common causes like parental education and age, parity. In addition, we might want to adjust for other co-variates like the childs gender.
+
+The next lines of R code load these variables and adds them to our data.
+
+
+```{r, eval = F}
+data_directory = "data/"
+Q1 = read_sav(paste0(data_directory,
+                        "PDB439_Skjema1_v10.sav"))
+Q1 = data.frame(Q1[,c("PREG_ID_439",
+                      paste("AA",c(11,1123:1127,1300:1303),
+                            sep = ""))])
+names(Q1)[-1] = c("Q1_YEAR","CivilStatus","mEDUcomp","mEDUcurr",
+                  "fEDUcomp","fEDUcurr","n_people_19p_Q1",
+                  "n_children_12_18_Q1","n_children_6_11_Q1",
+                  "n_children_0_5_Q1"))
+
+Q1$CivilStatus = factor(Q1$CivilStatus,
+                        levels = 1:6,
+                        labels = c("married","separated","cohabitating",
+                                   "widow","single","Other"))
+
+EDUlabels = c("basic","1-2 high school","vocational high","general high", "Bachelor","Master" )
+
+Q1$mEDU = Q1$mEDUcomp
+idx = is.na(Q1$mEDUcomp) & !is.na(Q1$mEDUcurr) & Q1$mEDUcurr != 1
+Q1$mEDU[idx] = Q1$mEDUcurr[idx] - 1
+Q1$mEDU = ordered(Q1$mEDU,labels = EDUlabels)
+Q1$fEDU = Q1$fEDUcomp
+idx = is.na(Q1$fEDUcomp) & !is.na(Q1$fEDUcurr) & Q1$fEDUcurr != 1
+Q1$fEDU[idx] = Q1$fEDUcurr[idx] - 1
+Q1$fEDU = ordered(Q1$fEDU,labels = EDUlabels)
+
+rm(EDUlabels,idx)
+
+
+data_directory = "data/"
+MFR = read_sav(paste0(data_directory,
+                        "PDB439_MFR_520_v10.sav"))
+MFR = data.frame(MFR[,c("PREG_ID_439","BARN_NR","KJONN","MORS_ALDER",
+                        "FAAR","LEVENDEFODTE_5","PARITET_5","FLERFODSEL",
+                        "VEKT","SVLEN_DG","APGAR1","APGAR5","FMND")])
+names(MFR)[-c(1,2)] = c("gender","mAge", "birth_year",
+                        "life_births","parity","multiple_births",
+                        "birthweight","pregnancy_duration",
+                        "APGAR1","APGAR5","birthmonth"))
+MFR$gender = factor(MFR$gender,levels = 1:2,labels = c("boy","girl"))
+MFR[is.na(MFR$life_births), life_births := parity]
+MFR[, birthmonth := as.numeric(birthmonth)]
+
+
+```
+
+```{r, echo = F}
+  load("data/Q1.Rdata")
+  load("data/MFR.Rdata")
+```
+
+```{r}
+my_data = merge(my_data,
+                MFR,
+                by = c("PREG_ID_439","BARN_NR"),
+                all.x = T,
+                all.y = F)
+my_data = merge(my_data,
+                Q1,
+                by = c("PREG_ID_439"),
+                all.x = T,
+                all.y = F)
+```
+
+Now we are readdy to look at a few tables and plots:
+
+```{r}
+describeBy(my_data[,c("positive","inconsistent")], group = my_data$mEDU)
+```
+
+This does not loo very clear. We can alo plot the raw data using the nice ggplot package:
+
+```{r}
+library(ggplot2)
+
+ggplot(my_data,
+       aes(x = ADHD,
+           fill = gender)) + geom_histogram(position="dodge2", bins = 15)
+ggplot(my_data,
+        aes(x = positive,
+            fill = mEDU)) + geom_histogram(aes(y = ..density..),position="dodge2", bins = 10)
+```
+
 
