@@ -239,13 +239,15 @@ item_quest_reduced = item_quest[-c(1,8)]
 items_factor1 = which(simple_loadings[1,] == T)
 items_factor2 = which(simple_loadings[2,] == T)
 
-cat("FACTOR 1 \n")
-cat(paste(item_quest_reduced[items_factor1],
-          collapse = "\n"))
+cat(paste0("Factor1:\n",
+          paste(item_quest_reduced[items_factor1],
+                collapse = "\n"),
+          "\n"))
 
-cat("\n\nFACTOR 2 \n")
-cat(paste(item_quest_reduced[items_factor2],
-          collapse = "\n"))
+cat(paste0("Factor2:\n",
+          paste(item_quest_reduced[items_factor1],
+                collapse = "\n"),
+          "\n"))
 
 ```
 
@@ -577,17 +579,125 @@ Now we are readdy to look at a few tables and plots:
 describeBy(my_data[,c("positive","inconsistent")], group = my_data$mEDU)
 ```
 
-This does not loo very clear. We can alo plot the raw data using the nice ggplot package:
+This does not look very clear. We can also plot the raw data using the nice ggplot package. Lets start with how parents with different educational levels differ in inconsistent parenting.
 
 ```{r}
 library(ggplot2)
+ggplot(my_data, aes(x = inconsistent, fill = mEDU)) + 
+  geom_histogram(aes(y = ..density..),position="dodge2", bins = 10)
+```
 
-ggplot(my_data,
-       aes(x = ADHD,
-           fill = gender)) + geom_histogram(position="dodge2", bins = 15)
-ggplot(my_data,
-        aes(x = positive,
-            fill = mEDU)) + geom_histogram(aes(y = ..density..),position="dodge2", bins = 10)
+This is still not very clear. We can summarize the data more by using boxplots.
+
+```{r}
+ggplot(my_data, aes(x = mEDU, y = inconsistent, fill = mEDU)) + 
+  geom_boxplot() +
+  stat_summary(fun.y="mean", geom="point", shape=23, size=3, fill="white")
 ```
 
 
+We can also plot means and confidence intervals. We use the `dplyr` package to calculate group means and quantiles, and then plot those:
+
+```{r}
+library(dplyr)
+my_stats = my_data %>% 
+  group_by(mEDU) %>%
+  summarise(m = mean(inconsistent),
+            sd = sd(inconsistent),
+            N = n()
+            )
+
+my_stats$CIlower = my_stats$m - my_stats$sd/sqrt(my_stats$N)*2
+my_stats$CIupper = my_stats$m + my_stats$sd/sqrt(my_stats$N)*2
+
+ggplot(my_stats,aes(x = mEDU, y = m, fill = mEDU)) + geom_bar(stat = "identity") + 
+  geom_pointrange(aes(x = mEDU, ymin = CIlower, ymax = CIupper)) +
+  stat_summary(fun.y="median", geom="point", shape=23, size=3, fill="white")
+```
+
+Alltogether, this tells us that there is not a lot happening between groups. This might seem counterintuitive given the last plot. But remeber that the data are scaled to have a standard deviation of 1. Only the difference between 1-2 hyewrs high school and mothers with a Master seems to be relatively large. 
+
+Because the data are not normally distrinbuted, it also seems that boxplots, which rely on mediand and quartiles, are more approproiate here. So lets look at the boxplots for positive parenting.
+
+```{r}
+ggplot(my_data, aes(x = mEDU, y = inconsistent, fill = mEDU)) + 
+  geom_boxplot() +
+  stat_summary(fun.y="mean", geom="point", shape=23, size=3, fill="white")
+```
+
+
+We see again that while there is some variation between groups, variation within groups is much more important.
+
+In sum, it looks as if there are only subtle difference in (reported) parental style between groups with different maternal education.
+
+Now lest look at the association with some othr potential confounders:
+```{r}
+breaks = c(seq(15,40, by = 5),50)
+my_data$mAgeg = cut(my_data$mAge, breaks = breaks,ordered_result = T)
+ggplot(my_data, aes(x = mAgeg, y = inconsistent, fill = mAgeg)) + 
+  geom_boxplot() 
+
+my_data$parity = as_factor(my_data$parity,ordered = T)
+ggplot(my_data, aes(x = parity, y = inconsistent, fill = parity)) + 
+  geom_boxplot() 
+
+ggplot(my_data, aes(x = gender, y = inconsistent, fill = gender)) + 
+  geom_boxplot() 
+```
+
+These associations also do not seem particularily strong.
+
+Now we quickly look at variations of positive parenting between groups:
+
+```{r}
+ggplot(my_data, aes(x = mEDU, y = positive, fill = mEDU)) + 
+  geom_boxplot() +
+  stat_summary(fun.y="mean", geom="point", shape=23, size=3, fill="white")
+
+breaks = c(seq(15,40, by = 5),50)
+my_data$mAgeg = cut(my_data$mAge, breaks = breaks,ordered_result = T)
+ggplot(my_data, aes(x = mAgeg, y = positive, fill = mAgeg)) + 
+  geom_boxplot() 
+
+my_data$parity = as_factor(my_data$parity,ordered = T)
+ggplot(my_data, aes(x = parity, y = positive, fill = parity)) + 
+  geom_boxplot() 
+
+ggplot(my_data, aes(x = gender, y = positive, fill = gender)) + 
+  geom_boxplot() 
+```
+
+We see again that while there is some variation between groups (with exception gender), variation within groups is much larger.
+
+To conclude this, we alo look at one of the outcomes
+
+```{r}
+my_stats = my_data %>% 
+  group_by(mAgeg) %>%
+  summarise(m = mean(ADHD),
+            md = median(ADHD),
+            sd = sd(ADHD),
+            N = n()
+            )
+
+my_stats$CIlower = my_stats$m - my_stats$sd/sqrt(my_stats$N)*2
+my_stats$CIupper = my_stats$m + my_stats$sd/sqrt(my_stats$N)*2
+
+ggplot(my_stats,aes(x = mAgeg, y = m, fill = mAgeg)) + geom_bar(stat = "identity") + 
+  geom_pointrange(aes(x = mAgeg, ymin = CIlower, ymax = CIupper)) +
+  geom_point(aes(x = mAgeg, y = md), col= "white", size = 2 )
+
+```
+
+```{r}
+my_data = my_data[complete.cases(my_data[,c("mEDU","mAge","parity","gender")]),]
+outcomes = c("OD","CD","SMFQ","CCC","SPRAAK")
+my_data$parity_n = as.numeric(my_data$parity)
+my_data$mEDU_n = as.numeric(my_data$mEDU)
+for (o in outcomes) {
+  reg_mod_str = paste(o,"~poly(positive,2) + poly(inconsistent,2) + poly(mEDU_n,2) + poly(mAge,2) + poly(parity_n,2) + gender")
+  lm_fit = lm(as.formula(reg_mod_str),
+              data = my_data)
+  plot_regression_results(lm_fit,o)
+}
+```
