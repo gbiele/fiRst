@@ -3,8 +3,8 @@ title: "A first R analysis"
 author: "Guido Biele"
 date: "16 november 2018"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -399,6 +399,9 @@ my_data = my_data[my_data$positive > -4,]
 
 
 ## Linear (and other) regressions in R
+
+_For the next section, you can run your own regression by changing the outcome. Use the command_ `names(my_data)` _to see, which variables are available._
+
 Finally, we can do simple linear regression models:
 ```{r}
 ADHD_model = lm(ADHD ~ positive + inconsistent, my_data)
@@ -670,6 +673,7 @@ cowplot::plot_grid(by_edu,
                    by_parity,
                    by_gender)
 ```
+
 Try to do the same plot but stratify by `birthmonth`.
 
 
@@ -725,6 +729,7 @@ cowplot::plot_grid(mean_ci_plot,
 
 OK, now that we have seen that exposure and outcome are (weakly) associated with a likely confounder, it makes sense to include them into the model. 
 
+## A final regression model: Ordinal predictors
 
 ```{r}
 ADHD_model4 = lm(ADHD ~
