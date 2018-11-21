@@ -95,7 +95,7 @@ names(Q5aar)
 ```
 
 ```{r, echo=F}
-load("data/Q5aar.Rdata")
+load("data/sQ5aar.Rdata")
 names(Q5aar)
 ```
 
