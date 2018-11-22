@@ -50,17 +50,16 @@ Installing packages is easy!
 
 ```{r, eval=FALSE}
 install.packages("haven")
-)
 ```
 
 One can also install multiple packages simultaneously as follows.
 ```{r, eval=FALSE}
-install.packages(c("ggplot2", "cowplots"
-                  "psych",
-                  "sjplot", "ggeffect",
+install.packages(c("ggplot2", "cowplot",
+                  "psych", "qualityTools"
+                  "sjPlot", "ggeffects",
                   "VIM",
                   "VGAM")
-)
+                 )
 ```
 
 _Some code chunks in this tutorial cannot be exectuted with the data in this repository, because I did not create synthesized data in SPSS format. All chunks that cannot be executed have set the option_ `eval=FALSE`. The script I used to create synthetic data can be found [here](https://github.com/gbiele/fiRst/blob/master/make_synth_data.R):
@@ -76,7 +75,7 @@ head(my_data)
 ```
 
 Now we run a simple linear regression.
-Our _exposure_ are factor scores (mean = 0, sd = 1) from a factor analysis of MoBa questions about parenting style at age 5. Our _outcome_ is a sum-score for ADHD symptoms from the questionnaire at age 8. We also adjust for gender.
+Our _exposure_ are factor scores for positive and inconsistent parenting (mean = 0, sd = 1). These are calculated from a factor analysis of MoBa questions about parenting style at age 5. Our _outcome_ is a sum-score for ADHD symptoms from the questionnaire at age 8. We also adjust for gender.
 
 Before we run the regression, we can inspect the correlation of the variables
 ```{r}
@@ -95,22 +94,25 @@ scatter.hist(my_data$inconsistent,
              xlab = "inconsistent parenting")
 ```
 
-
+This is how a linear regression is specified in R. Thew tilde `~` separates criterion and predictor variables.
 ```{r}
 my_fit = lm(ADHD ~ positive + inconsistent + gender,
             data = my_data)
 summary(my_fit)
 ```
 
-This looks kind of complicated. Lets make a table in APA format from this:
+_Try your won regression using another outcome by copying the formula above into the Concole below!_
+
+This result display looks kind of complicated. Lets make a table in APA format from this:
 
 ```{r}
 library(apaTables)
 apa.reg.table(my_fit, filename = "reg_table_APA.doc", table.number = 2)
 
 ```
+A nicely formatted table was also saved in a MS Word file named reg_table_APA.doc!.
 
-Note that the results were saved in a word file named reg_table_APA.doc!.
+But where is it? Type `getwd()`in the console to see what your current working directory is.
 
 It is still hard to understand the impact of parenting style on ADHD. The regression coefficients tell us that with a standard deviation increase of inconsistent parenting, the ADHD sum-score increases by 1 point.
 
