@@ -296,7 +296,7 @@ Q8aar = data.frame(Q8aar)
 ```
 
 ```{r, echo=F}
-load("data/Q8aar.Rdata")
+load("data/sQ8aar.Rdata")
 ```
 
 Now we are coming to a part, which always takes more time than we would wish: cleaning the data. We wqant to calculate sum-scores, but this is compliated by two facts: MoBa data come with 
@@ -586,7 +586,7 @@ MFR[, birthmonth := as.numeric(birthmonth)]
 
 ```{r, echo = F}
   load("data/Q1.Rdata")
-  load("data/MFR.Rdata")
+  load("data/sMFR.Rdata")
 ```
 
 ```{r}

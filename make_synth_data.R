@@ -68,3 +68,26 @@ for (v in item_names) {
 }
 Q5aar = Q5aar[,1:11]
 save(Q5aar,file = "data/sQ5aar.Rdata")
+
+
+load("data/Q8aar.Rdata")
+
+scale_items = list(SMFQ = 68:80,
+                   CCC = 211:226,
+                   SPRAAK20 = c(227:233, 374),
+                   CD = 111:118,
+                   ADHD = 119:136,
+                   OD = 137:144)
+
+for (s in names(scale_items)) {
+  items = paste0("NN",scale_items[[s]])
+  for (k in 1:nrow(Q8aar)) {
+    Q8aar[k,items] = sample(Q8aar[k,items])
+  }
+}
+
+save(Q8aar, file = "data/sQ8aar.Rdata")
+
+load("data/MFR.Rdata")
+MFR$mAge = MFR$mAge + sample(-2:2,nrow(MFR),replace = T)
+save(MFR,file = "data/sMFR.Rdata")
