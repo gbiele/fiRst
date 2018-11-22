@@ -44,18 +44,28 @@ For this introduction we will use following packes:
 * `psych` is a package for factor analysis and related things
 * `ggplot` and `cowplot` for general plotting
 * `sjPlot` and `ggeffect` for plotting of regression analysis results 
+* `VGAM` allows doing regression with more unusual responsemodels, like for example the beta binomial distribution.
 
 Installing packages is easy!
 
 ```{r, eval=FALSE}
 install.packages("haven")
-install.packages("ggplot2")
-install.packages("psych")
-install.packages("sjplot")
-install.packages("VIM")
+)
 ```
 
-One can also install multiple packages simulataneously as follows `install.packages(c("haven","psych"))`.
+One can also install multiple packages simulataneously as follows.
+```{r, eval=FALSE}
+install.packages(c("ggplot2", "cowplots"
+                  "psych",
+                  "sjplot", "ggeffect",
+                  "VIM",
+                  "VGAM")
+)
+```
+
+
+_Some code chunks in this tutorial cannot be exectuted with the data in this repository, because I did not create synthesized data in SPSS format. All chunks that cannot be executed have set the option_ `eval=FALSE`. The script I used to create synthetic data can be found [here](https://github.com/gbiele/fiRst/blob/master/make_synth_data.R):
+
 
 ## Loading data
 
@@ -72,6 +82,11 @@ All packages comn with a documentation, and if one is lucky also with one or mor
 
 
 OK, now we can load the data:
+```{r, echo=F}
+load("data/sQ5aar.Rdata")
+names(Q5aar)
+```
+
 ```{r, eval = F}
 data_directory = "data/"
 Q5aar = read_sav(paste0(data_directory,
@@ -93,6 +108,7 @@ Q5aar = Q5aar[,c("PREG_ID_439","BARN_NR",
                  paste0("LL",526:534))]
 names(Q5aar)
 ```
+
 
 ```{r, echo=F}
 load("data/sQ5aar.Rdata")
