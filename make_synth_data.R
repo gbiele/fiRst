@@ -1,7 +1,7 @@
 library(GenOrd)
 library(VIM)
 
-load("data/Q5aar.Rdata")
+load("data/real_data/Q5aar.Rdata")
 Q5aar_orig = Q5aar
 
 item_names = names(Q5aar)[-c(1,2)]
@@ -70,7 +70,7 @@ Q5aar = Q5aar[,1:11]
 save(Q5aar,file = "data/sQ5aar.Rdata")
 
 
-load("data/Q8aar.Rdata")
+load("data/real_data/Q8aar.Rdata")
 
 scale_items = list(SMFQ = 68:80,
                    CCC = 211:226,
@@ -88,6 +88,6 @@ for (s in names(scale_items)) {
 
 save(Q8aar, file = "data/sQ8aar.Rdata")
 
-load("data/MFR.Rdata")
+load("data/real_data/MFR.Rdata")
 MFR$mAge = MFR$mAge + sample(-2:2,nrow(MFR),replace = T)
 save(MFR,file = "data/sMFR.Rdata")

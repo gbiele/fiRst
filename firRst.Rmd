@@ -15,13 +15,13 @@ knitr::opts_chunk$set(echo = TRUE,
 
 ## Introduction
 
-This document aims to povide a shirt introduction into statistical analysis with R. The assumption is, that the reader is already familiar with basic concepts in R and the Rstuido IDE, and has some basic knowledge about statistics, for example from using SPSS. The goal here is to show how one can
+This document aims to provide a shirt introduction into statistical analysis with R. The assumption is, that the reader is already familiar with basic concepts in R and the RStudio IDE, and has some basic knowledge about statistics, for example from using SPSS. The goal here is to show how one can
 
 * open an SPSS file
-* merge seperate data sets
+* merge separate data sets
 * visually inspect the data
-* do a simple data reduction through an explatory factor analysis
-* estimate the association between an exposure and an outcome with a linear regregssion
+* do a simple data reduction through an exploratory factor analysis
+* estimate the association between an exposure and an outcome with a linear regression
 * visualize the results of this regression.
 
 ## Packages
@@ -34,17 +34,17 @@ The name R refers at the same time to 3 things:
 
 R packages are written (typically by using R, the programming language) by researchers and available for free. These packages are crucial, because the capabilities of The basic R software are limited.
 
-There are thousands of R packages. Therefore, CRAN [task view web sites](https://cran.rstudio.com/web/views/) are usful to give an overview about R packages for different application areas. CRAN stands for "Comprehensive R Archive Network".
+There are thousands of R packages. Therefore, CRAN [task view web sites](https://cran.rstudio.com/web/views/) are useful to give an overview about R packages for different application areas. CRAN stands for "Comprehensive R Archive Network".
 
 
-For this introduction we will use following packes:
+For this introduction we will use following packages:
 
-* `haven` allows to read SPSS (or stata) data into R
+* `haven` allows to read SPSS (or Stata) data into R
 * `ggplot` facilitates plotting 
 * `psych` is a package for factor analysis and related things
 * `ggplot` and `cowplot` for general plotting
 * `sjPlot` and `ggeffect` for plotting of regression analysis results 
-* `VGAM` allows doing regression with more unusual responsemodels, like for example the beta binomial distribution.
+* `VGAM` allows doing regression with more unusual response models, like for example the beta binomial distribution.
 
 Installing packages is easy!
 
@@ -53,7 +53,7 @@ install.packages("haven")
 )
 ```
 
-One can also install multiple packages simulataneously as follows.
+One can also install multiple packages simultaneously as follows.
 ```{r, eval=FALSE}
 install.packages(c("ggplot2", "cowplots"
                   "psych",
@@ -63,22 +63,87 @@ install.packages(c("ggplot2", "cowplots"
 )
 ```
 
-
 _Some code chunks in this tutorial cannot be exectuted with the data in this repository, because I did not create synthesized data in SPSS format. All chunks that cannot be executed have set the option_ `eval=FALSE`. The script I used to create synthetic data can be found [here](https://github.com/gbiele/fiRst/blob/master/make_synth_data.R):
+
+
+## The running a regression and plotting results
+When we do statistical analysis, we often think about how to choose covariates to include into a regression, which type of regression (linear, logistic, ..) to do, and some pray to God that $p < .05$. However, lots of time is spent on the much less glamorous part of cleaning the data and prepare them for the analysis ( _data wrangling_ ). Data wrangling will be an important part of this tutorial. I would also say that R is very good for doing this. But because some could think this is boring, we'll start with a quick regression model.
+
+We load the data. and look at the first few rows.
+```{r}
+load("data/mysdata.Rdata")
+head(my_data)
+```
+
+Now we run a simple linear regression.
+Our _exposure_ are factor scores (mean = 0, sd = 1) from a factor analysis of MoBa questions about parenting style at age 5. Our _outcome_ is a sum-score for ADHD symptoms from the questionnaire at age 8. We also adjust for gender.
+
+Before we run the regression, we can inspect the correlation of the variables
+```{r}
+library(psych)
+scatter.hist(my_data$inconsistent,
+             my_data$ADHD)
+```
+
+The default option generally works. But by specifying a few extra things, one gets a better plot:
+```{r}
+library(psych)
+scatter.hist(my_data$inconsistent,
+             my_data$ADHD,
+             smoother = T,
+             ylab = "ADHD sum score",
+             xlab = "inconsistent parenting")
+```
+
+
+```{r}
+my_fit = lm(ADHD ~ positive + inconsistent + gender,
+            data = my_data)
+summary(my_fit)
+```
+
+This looks kind of complicated. Lets make a table in APA format from this:
+
+```{r}
+library(apaTables)
+apa.reg.table(my_fit, filename = "reg_table_APA.doc", table.number = 2)
+
+```
+
+Note that the results were saved in a word file named reg_table_APA.doc!.
+
+It is still hard to understand the impact of parenting style on ADHD. The regression coefficients tell us that with a standard deviation increase of inconsistent parenting, the ADHD sum-score increases by 1 point.
+
+We can calculate predicted values at different levels of the exposure to get a better feeling for what that means:
+
+```{r}
+library(ggeffects)
+ggeffect(my_fit, term = "inconsistent")
+```
+
+And even better, we can plot them:
+
+```{r}
+library(sjPlot)
+plot_model(my_fit,
+           type = "eff",
+           terms = "inconsistent")
+```
+
 
 
 ## Loading data
 
-The problem we are looking at is the association between Parenting Style and child mental health symptoms. More specifically, we look at the association between self reported Parenting Style of well educated Norwegian mothers at child age 5 years and opposional behavior as well as mood and feeling at age 8. This data can be obtained from moba questionnaires 5 and 8.
+The problem we are looking at is the association between Parenting Style and child mental health symptoms. More specifically, we look at the association between self reported Parenting Style of well educated Norwegian mothers at child age 5 years and oppositional behavior as well as mood and feeling at age 8. This data can be obtained from MoBa questionnaires 5 and 8.
 
-If these data are available in SPSS (or stata) format, we can read them with the `haven` package, which we wirst have to load befor we can use it:
+If these data are available in SPSS (or Stata) format, we can read them with the `haven` package, which we first have to load before we can use it:
 
 ```{r}
 library(haven)
 library(VIM)
 ```
 
-All packages comn with a documentation, and if one is lucky also with one or more _vignettes_, which are tutorial-style documents that show how the functions in the package can be used. This and more information about the packages can be found at https://cran.rstudio.com/web/packages/haven/. For other packages, just replace "haven" with the name of the package you are interested in.
+All packages come with a documentation, and if one is lucky also with one or more _vignettes_, which are tutorial-style documents that show how the functions in the package can be used. This and more information about the packages can be found at https://cran.rstudio.com/web/packages/haven/. For other packages, just replace "haven" with the name of the package you are interested in.
 
 
 OK, now we can load the data:
@@ -101,22 +166,21 @@ The reason for doing this is that the code becomes a bit easier to read (still n
 
 Note that if we would already be in the same directory as the data file, we could just have written `Q5aar = read_sav("PDB439_Skjema5aar_v10.sav")`. You can use the commands `getwd()` and `setwd()` to check and set you working directory (wd).
 
-Next we select the variables we need. This are the pregancy ID and the child number, as well as the items for measuring parental style (we get SPSS variable names from [here](https://www.fhi.no/globalassets/dokumenterfiler/studier/moba/dokumenter/instrument-documentation-q-5year.pdf)). 
+Next we select the variables we need. This are the pregnancy ID and the child number, as well as the items for measuring parental style (we get SPSS variable names from [here](https://www.fhi.no/globalassets/dokumenterfiler/studier/moba/dokumenter/instrument-documentation-q-5year.pdf)). 
 
 ```{r, eval = F}
 Q5aar = Q5aar[,c("PREG_ID_439","BARN_NR",
                  paste0("LL",526:534))]
-names(Q5aar)
 ```
 
 
-```{r, echo=F}
-load("data/sQ5aar.Rdata")
-names(Q5aar)
+Lets look the data we have.
+```{r,}
+head(Q5aar)
 ```
 
 
-Ok, these variable names are not very clear, lets rename them:
+OK, these variable names are not very clear, lets rename them:
 
 ```{r}
 names(Q5aar)[3:11] = paste0("PS.item.",1:9)
@@ -130,7 +194,7 @@ attr(Q5aar$PS.item.1,"label")
 attr(Q5aar$PS.item.1,"labels")
 ```
 
-Here we see one anoying detail of SPSS Moba data: If the mother has ticked more than one box, the data are for our purposes missing, and not zero. We need to fix that.
+Here we see one annoying detail of SPSS Moba data: If the mother has ticked more than one box, the data are for our purposes missing, and not zero. We need to fix that.
 
 To do this, we do a quick for loop:
 
@@ -149,7 +213,7 @@ for (v in item_names) {
 table(as_factor(Q5aar$PS.item.1))
 ```
 
-Missing data is always a problem, especially with questionnaire data from long lasting studies such as MoBa. Lets look at missing data by schowing a table that counts them:
+Missing data is always a problem, especially with questionnaire data from long lasting studies such as MoBa. Lets look at missing data by showing a table that counts them:
 
 ```{r}
 table_plus_missing = table(addNA(as_factor(Q5aar$PS.item.1)))
@@ -166,7 +230,7 @@ is_missing = is.na(Q5aar[,-c(1,2)])
 hist(rowSums(is_missing))
 ```
 
-Indeed there is a substantial number of cases for which als Parenting style itmes are missing. Let's remove those participants where more than 50% of parenting style items are missing, and impute the missing values for the remaining participants.  We use the function `hotdeck`from the package `VIM` to impute values
+Indeed there is a substantial number of cases for which all Parenting style items are missing. Let's remove those participants where more than 50% of parenting style items are missing, and impute the missing values for the remaining participants.  We use the function `hotdeck`from the package `VIM` to impute values
 ```{r}
 library(VIM)
 Q5aar = Q5aar[rowMeans(is_missing[,item_names]) < .5,]
@@ -179,10 +243,10 @@ Q5aar[,item_names] = ps_imputations[,item_names]
 
 Our goal is to reduce the 9 items to a smaller set of variables describing parenting style. One way to do this is to use exploratory factor analysis (EFA) to learn the factor structure of the data. As a first step we'll check how many factors we need, using the `fa.parallel.poly` command from the `psych` package. 
 
-As with many things in R, using up to date methods is not hard, as you'll see. The problem is more in knowing that these methods exist. If you do not know which method to use, try googling it. The challange is in finding out which of the many similar packages one should use. Here are  a few tipps:
+As with many things in R, using up to date methods is not hard, as you'll see. The problem is more in knowing that these methods exist. If you do not know which method to use, try googeling it. The challenge is in finding out which of the many similar packages one should use. Here are  a few tips:
 
-* google [R tutorial exploratory factor analysis](https://www.google.com/search?q=R+tutorial+exploratory+factor+analysis), 
-* If a paper about a package is published in the [Journal of Statistical Software](https://www.jstatsoft.org), this is probably one of the better packages. dOn't worry about the name of the Journal! The articles typically include a tutorial about how to use the key functions.
+* Google [R tutorial exploratory factor analysis](https://www.google.com/search?q=R+tutorial+exploratory+factor+analysis), 
+* If a paper about a package is published in the [Journal of Statistical Software](https://www.jstatsoft.org), this is probably one of the better packages. Don't worry about the name of the Journal! The articles typically include a tutorial about how to use the key functions.
 
 Now lets move on with the exploratory factor analysis.
 One thing we need to specify is that polychoric correlations are used, because we have ordinal data.
@@ -228,7 +292,7 @@ fa_ps = fa(Q5aar[,reduced_items],
 fa_ps
 ```
 
-RMSEA and even more the TLI suggest that 2 factors hould be OK.
+RMSEA and even more the TLI suggest that 2 factors should be OK.
 
 This are the new factor loadings: 
 
@@ -274,7 +338,7 @@ factor_scores = fa_ps$scores
 colnames(factor_scores) = c("positive","inconsistent")
 ```
 
-Lets quickly look at the factor scores, before we add them to the data.frame with teh 5 year data.:
+Lets quickly look at the factor scores, before we add them to the data.frame with the 5 year data.:
 
 ```{r}
 par(mfrow = c(1,2))
@@ -288,7 +352,7 @@ Q5aar = cbind(Q5aar,factor_scores)
 
 ```
 
-If we had a great parenting scale, the histograms should look normally distributed. Especially the histogram for positive parenting deviates from that. It shows that (a) there are a few extreme outliers to the left and (b) there seems to be someting like a ceiling effect. That is, a good number of mothers report to be **VERY** positive in their parenting. This is another instance wehre it would be great to have a social desirability scale in MoBa.
+If we had a great parenting scale, the histograms should look normally distributed. Especially the histogram for positive parenting deviates from that. It shows that (a) there are a few extreme outliers to the left and (b) there seems to be something like a ceiling effect. That is, a good number of mothers report to be **VERY** positive in their parenting. This is another instance where it would be great to have a social desirability scale in MoBa.
 
 ## Some more data wrangling, including calculation of sum scores
 
@@ -315,13 +379,13 @@ Q8aar = data.frame(Q8aar)
 load("data/sQ8aar.Rdata")
 ```
 
-Now we are coming to a part, which always takes more time than we would wish: cleaning the data. We wqant to calculate sum-scores, but this is compliated by two facts: MoBa data come with 
+Now we are coming to a part, which always takes more time than we would wish: cleaning the data. We want to calculate sum-scores, but this is complicated by two facts: MoBa data come with 
 
 * `0` instead of `NA` for data with unambiguous responses
 * all scales start at 1
 * some of the data are missing.
 
-We will adress these problems in that order, starting with renaming some variables. To make this easier, we'll create simple functions where this is useful.
+We will address these problems in that order, starting with renaming some variables. To make this easier, we'll create simple functions where this is useful.
 
 First we rename all variables:
 
@@ -374,7 +438,7 @@ Q8aar = Q8aar[proportion_missing < .5,]
 tmp_items = tmp_items[proportion_missing < .5,]
 ```
 
-Now we use the function `hotdeck`from the package `VIM` to impute values. (`hotdeck` is fast). Other approaches like nearest neigbourg imputation of multiple chained imputation are more accurate, by they are to slow when analysing bigger data-sets in a turorial.
+Now we use the function `hotdeck`from the package `VIM` to impute values. (`hotdeck` is fast). Other approaches like nearest neighbor imputation of multiple chained imputation are more accurate, by they are to slow when analyzing bigger data-sets in a tutorial.
 
 ```{r}
 tmp_items_imputed = hotdeck(as.matrix(tmp_items))
@@ -453,7 +517,7 @@ summary(ADHD_model_bb)
 ```
 
 
-Even though the QQ plot shows that beta-binomila model is more appropriate, the tutorial continues with the result of the regression model. This is because some of the topics we are going to cover ar easy to implement for a linear regression model, but take a bit more time for alternative models.
+Even though the QQ plot shows that beta-binomial model is more appropriate, the tutorial continues with the result of the regression model. This is because some of the topics we are going to cover are easy to implement for a linear regression model, but take a bit more time for alternative models.
 
 ### Processing regression results: Tables and plots
 
@@ -464,7 +528,7 @@ library(apaTables)
 apa.reg.table(ADHD_model, filename = "Table2_APA.doc", table.number = 2)
 ```
 
-It is also relatively easy to plot model results. First, we simply plot the regression coefficients and confidende intervals.
+It is also relatively easy to plot model results. First, we simply plot the regression coefficients and confidence intervals.
 
 ```{r}
 library(sjPlot)
@@ -472,29 +536,23 @@ library(ggeffects)
 library(ggplot2)
 plot_model(ADHD_model)
 
-effect_inconsistent = ggpredict(ADHD_model, terms = "inconsistent", typical = "mean")
-effect_positive = ggpredict(ADHD_model, terms = "positive", typical = "mean")
-
-ggplot(effect_inconsistent, aes(x = x, y = predicted)) + 
-  geom_ribbon(aes(ymin=conf.low, ymax=conf.high, x=x, fill = "band"), alpha = 0.3, fill = "blue") + 
-  geom_line(col = "blue") + 
-  ylab("predicted sum score") + 
-  xlab("exposure") + 
-  coord_cartesian(ylim = c(0,quantile(my_data$ADHD,c(.95))))
+plot_model(ADHD_model, type = "eff", terms = "inconsistent")
 ```
 
-We can also plot the effects of teh two predictors together:
+We can also plot the effects of the two predictors besides each other to compare effects:
 
 ```{r}
-my_effects = rbind(cbind(effect_inconsistent,predictor = "inconsistent"),
-                   cbind(effect_positive,predictor = "positive"))
+library(ggplot2)
+ylim = c(0,quantile(my_data$ADHD,c(.95)))
 
-ggplot(my_effects, aes(x = x, y = predicted, col = predictor, group = predictor)) + 
-  geom_ribbon(aes(ymin=conf.low, ymax=conf.high, x=x, fill = predictor, col = NULL), alpha = 0.3) + 
-  geom_line() +
-  ylab("predicted sum score") + 
-  xlab("exposure") + 
-  coord_cartesian(ylim = c(0,quantile(my_data$ADHD,c(.95))))
+effect_pos = plot_model(ADHD_model, type = "eff", terms = "positive") + 
+             coord_cartesian(ylim = ylim)
+effect_inc = plot_model(ADHD_model, type = "eff", terms = "inconsistent") +
+             coord_cartesian(ylim = ylim)
+
+cowplot::plot_grid(effect_pos,
+                   effect_inc)
+
 ```
 
 
@@ -513,21 +571,16 @@ We'll use a new library, `cowplot` to put multiple ggplot figures together.
 ```{r, fig.width= 10}
 library(cowplot)
 coef_plot = plot_model(ADHD_model2)
-effect_inconsistent = ggpredict(ADHD_model2, terms = "inconsistent", typical = "mean")
-effect_positive = ggpredict(ADHD_model2, terms = "positive", typical = "mean")
+effect_pos = plot_model(ADHD_model, type = "eff", terms = "positive") + 
+             coord_cartesian(ylim = ylim)
+effect_inc = plot_model(ADHD_model, type = "eff", terms = "inconsistent") +
+             coord_cartesian(ylim = ylim)
 
-my_effects = rbind(cbind(effect_inconsistent,predictor = "inconsistent"),
-                   cbind(effect_positive,predictor = "positive"))
-
-effect_plot = ggplot(my_effects, aes(x = x, y = predicted, col = predictor, group = predictor)) + 
-  geom_ribbon(aes(ymin=conf.low, ymax=conf.high, x=x, fill = predictor, col = NULL), alpha = 0.3) + 
-  geom_line() +
-  ylab("predicted sum score") + 
-  xlab("exposure") + 
-  coord_cartesian(ylim = c(0,quantile(my_data$ADHD,c(.95))))
-
-cowplot::plot_grid(coef_plot,
-          effect_plot, nrow = 1)
+bottom_plots = plot_grid(effect_pos,
+                         effect_inc)
+plot_grid(coef_plot,
+          bottom_plots,
+          nrow = 2)
 ```
 
 ### Adding interaction effects
@@ -544,7 +597,7 @@ summary(ADHD_model2)
 ```
 This does not seem to make a big difference.
 
-This analysis suggests that mothers who report inconsistent parenting at child age 3 (they do not follow trough with a threatened punishment) later report more ADHD problems with their children. There are several reasons that we should not immediatly endorse a causal interpretation. This could in fact be revers causation, if children with problems at age 8 also had problems at age 5, and it was these problems at age five that caused inconsistent parenting. Some would certainly argue tha this is all genetic: the same genes that are reponsinle for mental health problems also cause inconsistent parenting (e.g. parents with mental health problems might be more prone to be inconsistent.). Genes are an example of confounders: common causes of exposure and outcomes. We do not have genetic information here, but we can easily think of other pontial common causes like parental education and age, parity. In addition, we might want to adjust for other co-variates like the childs gender.
+This analysis suggests that mothers who report inconsistent parenting at child age 3 (they do not follow trough with a threatened punishment) later report more ADHD problems with their children. There are several reasons that we should not immediately endorse a causal interpretation. This could in fact be revers causation, if children with problems at age 8 also had problems at age 5, and it was these problems at age five that caused inconsistent parenting. Some would certainly argue that this is all genetic: the same genes that are responsible for mental health problems also cause inconsistent parenting (e.g. parents with mental health problems might be more prone to be inconsistent.). Genes are an example of confounders: common causes of exposure and outcomes. We do not have genetic information here, but we can easily think of other potential common causes like parental education and age, parity. In addition, we might want to adjust for other covariates like the childs gender.
 
 
 ## Investigating potential confounders through plotting
@@ -586,23 +639,20 @@ rm(EDUlabels,idx)
 data_directory = "data/"
 MFR = read_sav(paste0(data_directory,
                         "PDB439_MFR_520_v10.sav"))
-MFR = data.frame(MFR[,c("PREG_ID_439","BARN_NR","KJONN","MORS_ALDER",
-                        "FAAR","LEVENDEFODTE_5","PARITET_5","FLERFODSEL",
-                        "VEKT","SVLEN_DG","APGAR1","APGAR5","FMND")])
-names(MFR)[-c(1,2)] = c("gender","mAge", "birth_year",
-                        "life_births","parity","multiple_births",
-                        "birthweight","pregnancy_duration",
-                        "APGAR1","APGAR5","birthmonth"))
+MFR = data.frame(MFR[,c("PREG_ID_439","BARN_NR",
+                        "KJONN","MORS_ALDER",
+                        "PARITET_5","FMND")])
+names(MFR)[-c(1,2)] = c("gender","mAge", 
+                        "parity","birthmonth")
 MFR$gender = factor(MFR$gender,levels = 1:2,labels = c("boy","girl"))
-MFR[is.na(MFR$life_births), life_births := parity]
-MFR[, birthmonth := as.numeric(birthmonth)]
-
+MFR$birthmonth = as.numeric(MFR$birthmonth)
 
 ```
 
 ```{r, echo = F}
-  load("data/Q1.Rdata")
+  load("data/sQ1.Rdata")
   load("data/sMFR.Rdata")
+  names(attr(MFR$parity,"labels")) = c("0","1","2","3",">3")
 ```
 
 ```{r}
@@ -618,7 +668,7 @@ my_data = merge(my_data,
                 all.y = F)
 ```
 
-Now we are readdy to look at a few tables and plots. First, we use the `group_by`function of the `dplyr`package to show the mean exposures grouped by education.
+Now we are ready to look at a few tables and plots. First, we use the `group_by`function of the `dplyr`package to show the mean exposures grouped by education.
 
 ```{r}
 library(dplyr)
@@ -653,7 +703,7 @@ ggplot(my_stats,aes(x = mEDU, y = m, fill = mEDU)) + geom_bar(stat = "identity")
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
-Now it looks as if the differences between groups are substantial. However, remeber that the expsore variables has an sd of 1, so the differences are maybe not so imporant. To get a better view of the variations within and between groups, we can plot boxplots:
+Now it looks as if the differences between groups are substantial. However, remember that the exposure variables has an sd of 1, so the differences are maybe not so important. To get a better view of the variations within and between groups, we can plot boxplots:
 
 ```{r}
 ggplot(my_data, aes(x = mEDU, y = inconsistent, fill = mEDU)) + 
@@ -664,13 +714,12 @@ ggplot(my_data, aes(x = mEDU, y = inconsistent, fill = mEDU)) +
 
 This shows that even though there is are reliable differences between groups, the variation within groups is much larger than the variation between groups.
 
-Now lets look at the association with all potential measured confounders (this looks like a lot of code, but it is really only repetion of the same code!):
+Now lets look at the association with all potential measured confounders (this looks like a lot of code, but it is really only repetition of the same code!):
 ```{r, fig.height=10}
 breaks = c(seq(15,40, by = 5),50)
 my_data$mAgeg = cut(my_data$mAge, breaks = breaks,ordered_result = T)
 my_data$parity = as_factor(my_data$parity,ordered = T)
 my_data$birthmonth = ordered(my_data$birthmonth)
-my_data$birth_year = ordered(my_data$birth_year)
 
 by_edu = ggplot(my_data, aes(x = mEDU, y = inconsistent, fill = mEDU)) + 
   geom_boxplot(show.legend = F) +
@@ -698,23 +747,27 @@ Here is the same plot for positive parenting:
 by_edu = ggplot(my_data, aes(x = mEDU, y = positive, fill = mEDU)) + 
   geom_boxplot(show.legend = F) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
 by_age = ggplot(my_data, aes(x = mAgeg, y = positive, fill = mAgeg)) + 
   geom_boxplot(show.legend = F) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
 by_parity = ggplot(my_data, aes(x = parity, y = positive, fill = parity)) + 
   geom_boxplot(show.legend = F) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
 by_gender = ggplot(my_data, aes(x = gender, y = positive, fill = gender)) + 
   geom_boxplot(show.legend = F) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
-cowplot::plot_grid(by_edu,
-                   by_age,
-                   by_parity,
-                   by_gender)
+
+plot_grid(by_edu,
+          by_age,
+          by_parity,
+          by_gender)
 ```
 
 
-These associations also do not seem particularily strong.
+These associations also do not seem particularly strong.
 
 We conclude this plotting tour with a look at the association between confounders and ADHD symptoms.
 
@@ -739,8 +792,8 @@ box_plot = ggplot(my_data, aes(x = mEDU, y = ADHD, fill = mEDU)) +
            geom_boxplot(show.legend = F) +
            theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-cowplot::plot_grid(mean_ci_plot,
-                   box_plot)
+plot_grid(mean_ci_plot,
+          box_plot)
 ```
 
 OK, now that we have seen that exposure and outcome are (weakly) associated with a likely confounder, it makes sense to include them into the model. 
@@ -782,44 +835,52 @@ summary(ADHD_model4)
 plot_model(ADHD_model4)
 ```
 
-This table suggests that parenting style still has an effect, after we controlled for a number of potential confounders. It is, however, difficult to understand the importance (effect sizes) for the different predictors, because they are measured on different scales (have different means and standard deviations). To get a better idea of effect sizesm we can again plot marginal effects.
+This table suggests that parenting style still has an effect, after we controlled for a number of potential confounders. It is, however, difficult to understand the importance (effect sizes) for the different predictors, because they are measured on different scales (have different means and standard deviations). To get a better idea of effect size we can again plot marginal effects.
 
-We use a small loop, so that we don't have to write the same lines of code repeatedly for the different predictors.
+We use a small loop, so that we don't have to write the same lines of code repeatedly for the different predictors. (We also quickly re-fit the model, because the ggeffects package as problems if one uses the `raw = TRUE` options when defining ploynomials.)
 
 ```{r}
+predictors = c("positive","inconsistent","mAge","mEDU","parity","gender", "birthmonth")
+my_data = my_data[complete.cases(my_data[,predictors]),]
+ADHD_model4x = lm(ADHD ~
+                   poly(positive,2) + 
+                   poly(inconsistent,2) + 
+                   mEDU + 
+                   poly(mAge,2) + 
+                   parity +
+                   gender + 
+                   birthmonth,
+              data = my_data)
+
 ylim = c(0,quantile(my_data$ADHD,c(.95)))
 
-predictors = c("positive","inconsistent","mAge","mEDU","parity","gender", "birthmonth")
 effect_plots = vector(mode = "list", length = length(predictors))
 names(effect_plots) = predictors
 
 for ( p in 1:length(predictors)) {
-  efct = ggpredict(ADHD_model4, terms = predictors[p])
-  effect_plots[[p]] = ggplot(efct, aes(x = x, y = predicted)) + 
-                      geom_ribbon(aes(ymin=conf.low,
-                                      ymax=conf.high,
-                                      x=x,
-                                      col = NULL),
-                                  alpha = 0.3) + 
-                      geom_line() +
-                      ylab("predicted sum score") + 
-                      xlab(predictors[p]) + 
+  effect_plots[[p]] = plot_model(ADHD_model4x, type = "eff", terms = predictors[p]) +
                       coord_cartesian(ylim = ylim)
 }
 ```
 
 First we look at the effect of confounders:
 
-```{r}
-cowplot::plot_grid(plotlist = effect_plots[3:length(predictors)])
+```{r, fig.width=8, fig.height=10}
+plot_grid(plotlist = effect_plots[3:length(predictors)], nrow = 3)
 ```
 
 And finally on the effect of our exposures:
 
 ```{r}
-cowplot::plot_grid(plotlist = effect_plots[1:2])
-
+plot_grid(plotlist = effect_plots[1:2])
 ```
 
-Interestingly, this suggests that the association between inconsisten parenting style at child age 5 and ADHD sum score at child age 8 increases after we control for some potential confounders.
+Interestingly, this suggests that the association between inconsistent parenting style at child age 5 and ADHD sum score at child age 8 increases after we control for some potential confounders.
+
+
+In this document we have mixed data preparation and data analysis. Typically, I would have one or several script for data preparation, and one for data analysis. In this spirit, lets save the data so that we can load them another time for further analysis.
+```{r}
+save(my_data,file = "data/mysdata.Rdata")
+```
+
 
