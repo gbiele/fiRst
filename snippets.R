@@ -1,5 +1,5 @@
 library(lme4)
-
+options(mc.cores = 4)
 
 m = stan_lmer(ADHD ~
                 poly(positive,2) + 
@@ -8,7 +8,8 @@ m = stan_lmer(ADHD ~
                 ( poly(positive,2) + 
                     poly(inconsistent,2) | mEDU),
               my_data, 
-              algorithm = "meanfield")
+              algorithm = "meanfield",
+              QR = T)
 
 effects_i = data.frame(ggpredict(m,terms = c("inconsistent","mEDU"), type = "re"))
 effects_p = data.frame(ggpredict(m,terms = c("positive","mEDU"), type = "re"))
@@ -17,12 +18,12 @@ plot_model(m, type = "re")
 
 ggplot(effects_i, aes(x= x, y = predicted)) + 
   geom_line() + 
-  geom_ribbon(aes(ymin=conf.low, ymax=conf.high, x=x,), alpha = 0.3) + 
+  geom_ribbon(aes(ymin=conf.low, ymax=conf.high, x=x), alpha = 0.3) + 
   facet_wrap(~group)
 
 ggplot(effects_p, aes(x= x, y = predicted)) + 
   geom_line() + 
-  geom_ribbon(aes(ymin=conf.low, ymax=conf.high, x=x,), alpha = 0.3) + 
+  geom_ribbon(aes(ymin=conf.low, ymax=conf.high, x=x), alpha = 0.3) + 
   facet_wrap(~group)
 
 

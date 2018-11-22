@@ -3,8 +3,8 @@ title: "A first R analysis"
 author: "Guido Biele"
 date: "16 november 2018"
 output:
-  html_document: default
   pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -57,7 +57,7 @@ One can also install multiple packages simultaneously as follows.
 install.packages(c("ggplot2", "cowplot",
                   "psych", "qualityTools"
                   "sjPlot", "ggeffects",
-                  "VIM",
+                  "VIM", "apaTables".
                   "VGAM")
                  )
 ```
@@ -879,10 +879,5 @@ plot_grid(plotlist = effect_plots[1:2])
 
 Interestingly, this suggests that the association between inconsistent parenting style at child age 5 and ADHD sum score at child age 8 increases after we control for some potential confounders.
 
-
-In this document we have mixed data preparation and data analysis. Typically, I would have one or several script for data preparation, and one for data analysis. In this spirit, lets save the data so that we can load them another time for further analysis.
-```{r}
-save(my_data,file = "data/mysdata.Rdata")
-```
 
 
