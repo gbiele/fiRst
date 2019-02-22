@@ -1,0 +1,148 @@
+---
+title: "Preparing data from SPSS"
+author: "Guido Biele"
+date: "22 februar 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+In this sessin we will open SPSS data files in R and do some simple manipulations. The data we are using are _synthetic!!_ Moba data. That is, data have the same marginal distributions and the same covariance as real Moba data, except that they are simulated. Such data can be generated with the [Genord](https://cran.rstudio.com/web/packages/GenOrd/index.html) package, which is specifically desined to simulate ordinal data.
+
+The topic of our analysis will be the effect of parenting style measured in the 5th MoBa questionnaire on some outcomes measured in 5 year questionnaire.
+
+## Loading data from SPSS
+
+SPSS data, i.e. .sav files, can be loaded with the [foreign](https://cran.rstudio.com/web/packages/foreign/index.html) or [haven](https://cran.rstudio.com/web/packages/haven/index.html) packages. Here we use the haven package. If you are using a package for the first time, it can make sense to have a quick look at the documentation, in order to learn what functions exists and what these functions do. The documentations are, like the packages on CRAN, which stands for "Comprehensive R Archive Network". Here is the haven documentation: https://cran.rstudio.com/web/packages/haven/haven.pdf. more information about the package is [here](https://cran.rstudio.com/web/packages/haven/index.html)
+
+Ok lets get started. We load the package.
+
+```{r}
+library(haven)
+```
+
+If we look at the [haven documentation](https://cran.rstudio.com/web/packages/haven/haven.pdf) to see what functions are available. The functions `read_spss`looks promising. So we use this to load the data files. We also immediately make them to data.frame.
+
+```{r}
+MFR = data.frame(read_spss("data/sMFR.sav"))
+Q5aar = data.frame(read_spss("data/Q5aar.sav"))
+Q8aar = data.frame(read_spss("data/Q8aar.sav"))
+```
+
+Next we look at which variables we got:
+
+```{r}
+names(MFR)
+names(Q5aar)
+names(Q8aar)
+```
+
+This is not very clear. However, we know that these data are in the "labelled" format. That is, for each variable we have what SPSS calls variable and value labels. In R, those are the `label`and `labels` attributes:
+
+```{r}
+for (k in 1:ncol(Q5aar))
+  print(attr(Q5aar[,k],"label"))
+```
+
+OK, this are our questions about parenting scale. Now we can look up the `labels` attribute to see how the variable is coded:
+
+```{r}
+attr(Q5aar[,1],"labels")
+```
+
+Here we see one "issue" with MoBa data. Multiple responses are coded with 0, instead of "NA". So we need to set all zero values to missing, `NA` in the R language. To do this, we use _logical indexing_.
+
+```{r}
+for (k in 1:9) {
+  is_zero = which(Q5aar[,k] == 0)
+  Q5aar[is_zero,k] = NA
+}
+```
+
+We can also get a bit more fancy than that by exploiting that the values labels are a named vector:
+
+```{r}
+for (k in 1:ncol(Q8aar)) {
+  value_lables = attr(Q8aar[,k], "labels")
+  is_zero = which(Q8aar[,k] == value_lables["Mer enn ett kryss"])
+  Q8aar[is_zero,k] = NA
+}
+```
+
+Next, we rename variable so tha they are more intuitive:
+
+```{r}
+item_names = paste0("PSi.",1:9)
+names(Q5aar)[1:9] = item_names
+head(Q5aar)
+```
+
+For the 8 year questioannaire I looked uo the MoBa documentaion to see which variables belong to which questionnnaire:
+
+```{r}
+scales = list(SMFQ = 68:80,
+             CCC2 = 211:226,
+             SPRK20 = c(227:233, 374),
+             CD = 111:118,
+             ADHD = 119:136,
+             OD = 137:144)
+
+for (s in names(scales)) {
+  original_names = paste0("NN",scales[[s]])
+  original_names_idx = which(names(Q8aar) %in% original_names)
+  new_names = paste0(s,"i.",1:length(scales[[s]]))
+  names(Q8aar)[original_names_idx] = new_names
+}
+
+head(Q8aar)
+```
+
+## Merging data
+
+In R we can use a simple `merge` command to combine data.frames. 
+
+```{r}
+identifier_variables = c("PREG_ID_439","BARN_NR")
+my_data = merge(MFR,Q5aar, by = identifier_variables)
+my_data = merge(my_data,Q8aar, by = identifier_variables)
+```
+
+One last thing we can do before looking at the data is to convert from the "labled" type to an "ordered factor", so that R knows that questionaire responses are on the ordinal scale.
+
+```{r}
+items = grep("i.[0-9]",names(my_data), value = T)
+for (v in items) {
+  item_levels = attr(my_data[,v],"labels")
+  if (names(item_levels)[1] == "Mer enn ett kryss")
+    attr(my_data[,v],"labels") = item_levels[-1]
+  my_data[,v] = as_factor(my_data[,v],ordered = T)
+}
+```
+
+## Exploring data with tables and plots
+
+We use facilities from the "psych" package to look at the data:
+
+```{r}
+library(psych)
+describe(my_data)
+```
+
+For starters, we can plot barplots for all items.
+
+```{r}
+identifier_variables = c("PREG_ID_439","BARN_NR")
+my_data = merge(MFR,Q5aar, by = identifier_variables)
+my_data = merge(my_data,Q8aar, by = identifier_variables)
+
+for(v in items) {
+  my_title = attr(my_data[,v],"label")
+  my_title = strsplit(my_title,";")[[1]][5]
+  barplot(table(my_data[,v]),
+          main = my_title)
+}
+
+```
+
