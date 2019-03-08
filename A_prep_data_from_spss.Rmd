@@ -31,6 +31,17 @@ Q5aar = data.frame(read_spss("data/Q5aar.sav"))
 Q8aar = data.frame(read_spss("data/Q8aar.sav"))
 ```
 
+```{r, echo = F}
+#Fix MFR variables
+MFR[which(MFR$KJONN == 4),"KJONN"] = 2
+MFR$KJONN = MFR$KJONN-1
+MFR = MFR[MFR$KJONN != 4,]
+attr(MFR$KJONN,"labels") = attr(MFR$KJONN,"labels")[2:3]
+MFR$PARITET_5 = MFR$PARITET_5-2
+attr(MFR$PARITET_5,"labels") = attr(MFR$PARITET_5,"labels")[-6]
+```
+
+
 Next we look at which variables we got:
 
 ```{r}
@@ -54,6 +65,31 @@ attr(Q5aar[,1],"labels")
 
 Here we see one "issue" with MoBa data. Multiple responses are coded with 0, instead of "NA". So we need to set all zero values to missing, `NA` in the R language. To do this, we use _logical indexing_.
 
+Before w correct this, lets look at a short example to exlain how a for-loop works. The for loop has the following structure:
+
+```{r, eval = F}
+for (k in all_ks) {
+  do_something_with_k
+}
+```
+
+Typically `all_ks` is a vector with number or strings. A simple example would be
+
+```{r, eval = F}
+
+all_ks = c(1,2,3,4,5)
+# or equivalently
+all_ks = 1:5
+
+for (k in all_ks) {
+  y = k * 3
+  print(y)
+}
+```
+As you can see from this example, we can define new variables in a loop (here `y`) and use it for further computations. It is important to remember, that if you had defined a variable `y` before, this would be overwriten by the action in the loop! [here](https://www.datacamp.com/community/tutorials/tutorial-on-loops-in-r?) you can ead more about loops in R.
+
+Using such a for loop, we can now set all 0-values to missing, that is to `NA`.
+
 ```{r}
 for (k in 1:9) {
   is_zero = which(Q5aar[,k] == 0)
@@ -70,6 +106,19 @@ for (k in 1:ncol(Q8aar)) {
   Q8aar[is_zero,k] = NA
 }
 ```
+
+In this section, we used the `==` command, which makes a logical query. In particular, the command `Q8aar[,k] == value_lables["Mer enn ett kryss"]` asks "Which entries in column `k` of the data frame `Q5aar` have a value equal to the value with thenames "Mer enn ett kryss""? and returns a new vector that has the values `TRUE` or `FALSE`. The command `which` just gives us the positions of such a vector where the value is `TRUE`. The following example shows this:
+
+```{r}
+test = c(1,2,3,4,5,6,7,8,9,10)
+is_larger_5 = test > 5
+index_is_larger_5 = which(is_larger_5)
+
+print(is_larger_5)
+print(index_is_larger_5)
+```
+
+
 
 Next, we rename variable so tha they are more intuitive:
 
@@ -109,7 +158,7 @@ my_data = merge(MFR,Q5aar, by = identifier_variables)
 my_data = merge(my_data,Q8aar, by = identifier_variables)
 ```
 
-One last thing we can do before looking at the data is to convert from the "labled" type to an "ordered factor", so that R knows that questionaire responses are on the ordinal scale.
+One last thing we can do before looking at the data is to convert from the "labeled" type to an "ordered factor", so that R knows that questionaire responses are on the ordinal scale.
 
 ```{r}
 items = grep("i.[0-9]",names(my_data), value = T)
@@ -123,26 +172,113 @@ for (v in items) {
 
 ## Exploring data with tables and plots
 
-We use facilities from the "psych" package to look at the data:
+Before one does anything else, one should first have a look at missingness. A simple way to get a first view is to plot a histogram of the the number of missing data per variable and per person.
+
+```{r}
+missings = is.na(my_data)
+missings_per_variable = colSums(missings)
+hist(missings_per_variable)
+
+missings_per_person = rowSums(missings)
+hist(missings_per_person)
+```
+
+Here, `missings_per_person`is more interesting, because is shows us that for ca. 30000 participants we have more than 60 missing variables. Lets replot this as percent missing:
+
+```{r}
+percent_missings_per_person = missings_per_person/(ncol(my_data)-2)*100
+hist(percent_missings_per_person)
+```
+
+OK, more than 80% missing for around 30000 participants. This is loss to follow up in MoBa. That is, this are individuals who agreed to be part of MoBa and for which we therefore have MFR data, but for which we do not have data from teh 5 or 8 years qestionnnaire. We use logical indexing to remove these people from the data.frame `my_data`. (Note that for a proper analysis we would want to check if loss to follow up is random. It probably isn't, but dealing with this type of selection bias is a topic on its own.)
+
+```{r}
+my_data = my_data[percent_missings_per_person < 80,]
+nrow(my_data)
+```
+
+Now we can again look at missings per variable.
+
+```{r}
+missings = is.na(my_data)
+missings_per_variable = colSums(missings)
+hist(missings_per_variable)
+```
+
+Given that we have `r nrow(my_data)` individuals, this look OK.
+
+### Tables
+
+We use facilities from the "psych" package to look at the data. The `describe` command makes a simple table with descriptive statistics. Here we specify that we do not want skew and kurosis statistics, because we already know that questionnaire items will not be normally distributed.
 
 ```{r}
 library(psych)
-describe(my_data)
+describe(my_data,
+         skew = F)
 ```
 
-For starters, we can plot barplots for all items.
+We can also easily generate stratified tables:
 
 ```{r}
-identifier_variables = c("PREG_ID_439","BARN_NR")
-my_data = merge(MFR,Q5aar, by = identifier_variables)
-my_data = merge(my_data,Q8aar, by = identifier_variables)
+my_data$KJONN = as_factor(my_data$KJONN)
+ADHD_items = grep("ADHD",names(my_data))
 
-for(v in items) {
-  my_title = attr(my_data[,v],"label")
-  my_title = strsplit(my_title,";")[[1]][5]
-  barplot(table(my_data[,v]),
-          main = my_title)
-}
+describeBy(my_data[,ADHD_items],
+           group = my_data$KJONN,
+           skew = F)
 
+```
+
+And we can make simple cross-tabs:
+
+```{r}
+my_data$PARITET_5 = as_factor(my_data$PARITET_5)
+
+xtabs(~KJONN + PARITET_5,
+      my_data)
+
+```
+
+
+### Plots
+
+One of the most populr R packges is `ggplot2`, because it allows to make even complex plots in a simple manner. ("gg" stands for grammar of graphics, which I do not feel competent to explain in detail. So we'll just have a look at a few examples. See [here](http://r-statistics.co/Complete-Ggplot2-Tutorial-Part1-With-R-Code.html) for a detailed instroduction into ggplot2).
+
+The simplest ggplot has the structure `ggplot(my_data, aes(my_mappings)) + geom_plottype`. 
+OFr example, we can make a simple histogram as follows:
+
+```{r}
+library(ggplot2)
+ggplot(my_data, aes(x = ADHDi.1)) + 
+  geom_histogram(stat = "count")
+```
+
+And we can extend this by stratifying after gender:
+
+```{r}
+ggplot(my_data, aes(x = ADHDi.1, fill = KJONN)) + 
+  geom_histogram(stat = "count", position = position_dodge())
+```
+
+Or we can make sub-plot by parity:
+
+
+```{r}
+ggplot(my_data, aes(x = ADHDi.1)) + 
+  geom_histogram(stat = "count") + 
+  facet_wrap(~PARITET_5)
+```
+
+We can also combine both:
+
+```{r}
+ggplot(my_data, aes(x = ADHDi.1,fill = KJONN)) + 
+  geom_histogram(stat = "count",
+                 position = position_dodge()) + 
+  facet_wrap(~PARITET_5)
+```
+
+```{r}
+#polychoric(my_data[,grep("",names(my_data))])
 ```
 
