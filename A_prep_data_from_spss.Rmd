@@ -244,8 +244,8 @@ xtabs(~KJONN + PARITET_5,
 
 One of the most populr R packges is `ggplot2`, because it allows to make even complex plots in a simple manner. ("gg" stands for grammar of graphics, which I do not feel competent to explain in detail. So we'll just have a look at a few examples. See [here](http://r-statistics.co/Complete-Ggplot2-Tutorial-Part1-With-R-Code.html) for a detailed instroduction into ggplot2).
 
-The simplest ggplot has the structure `ggplot(my_data, aes(my_mappings)) + geom_plottype`. 
-OFr example, we can make a simple histogram as follows:
+The simplest ggplot has the structure `ggplot(my_data, aes(my_mappings)) + geom_plottype()`. 
+for example, we can make a simple histogram as follows:
 
 ```{r}
 library(ggplot2)
@@ -254,6 +254,12 @@ ggplot(my_data, aes(x = ADHDi.1)) +
 ```
 
 And we can extend this by stratifying after gender:
+```{r}
+ggplot(my_data, aes(x = ADHDi.1, fill = KJONN)) + 
+  geom_histogram(stat = "count")
+```
+
+If we don't specify otherwise, we get stacked bars. But it is possible to have the bars siede-by-side.
 
 ```{r}
 ggplot(my_data, aes(x = ADHDi.1, fill = KJONN)) + 
@@ -262,23 +268,58 @@ ggplot(my_data, aes(x = ADHDi.1, fill = KJONN)) +
 
 Or we can make sub-plot by parity:
 
-
 ```{r}
 ggplot(my_data, aes(x = ADHDi.1)) + 
   geom_histogram(stat = "count") + 
-  facet_wrap(~PARITET_5)
+  facet_wrap(~PARITET_5) 
 ```
 
-We can also combine both:
+
+The tick labels on the x axis are not gret here, but we can fix that:
+```{r}
+ggplot(my_data, aes(x = ADHDi.1)) + 
+  geom_histogram(stat = "count") + 
+  facet_wrap(~PARITET_5) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+At this moment it is maybe good to state clearly that one does not need to know all these commands by haert. One does need to know the basic types of plots and that one can adjust color, type of points, linetype etc. And given this basic konwledge one gets very far by just googeling `ggplot histogram` or `ggplot boxplot` ...
+
+We can also combine coloring by geneder and faceting by parity:
 
 ```{r}
 ggplot(my_data, aes(x = ADHDi.1,fill = KJONN)) + 
   geom_histogram(stat = "count",
                  position = position_dodge()) + 
-  facet_wrap(~PARITET_5)
+  facet_wrap(~PARITET_5) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
+However, the real advantage of ggplot is the possibility to make relatively complex plot with little effort. For example, we could be interested in ADHD symptoms strength by birth-months:
+
 ```{r}
-#polychoric(my_data[,grep("",names(my_data))])
+library(tidyverse)
+ADHD_items = my_data[,grep("ADHDi",names(my_data))]
+for (k in 1:ncol(ADHD_items))
+  ADHD_items[,k] = as.numeric(ADHD_items[,k])
+
+
+my_data$ADHD.SS = rowMeans(ADHD_items)*ncol(ADHD_items)-18
+
+ggplot(my_data, aes(x = ADHD.SS)) + geom_histogram(binwidth = 1)
+ggplot(my_data, aes(x = FMND, y = ADHD.SS, color = KJONN)) + 
+  stat_summary(geom="line", fun.y="mean")
+```
+
+
+
+Finally, here is one of my favorite plots, which I use to get an overview over data: A _heatmap_ plot of correlations between variables.
+
+```{r}
+library(gplots)
+
+cormat = polychoric(ADHD_items)
+rho = cormat$rho
+heatmap.2(rho, trace = "none")
 ```
 
