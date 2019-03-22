@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-In this sessin we will open SPSS data files in R and do some simple manipulations. The data we are using are _synthetic!!_ Moba data. That is, data have the same marginal distributions and the same covariance as real Moba data, except that they are simulated. Such data can be generated with the [Genord](https://cran.rstudio.com/web/packages/GenOrd/index.html) package, which is specifically desined to simulate ordinal data.
+In that sessin we will open SPSS data files in R and do some simple manipulations. The data we are using are _synthetic!!_ Moba data. That is, data have the same marginal distributions and the same covariance as real Moba data, except that they are simulated. Such data can be generated with the [Genord](https://cran.rstudio.com/web/packages/GenOrd/index.html) package, which is specifically desined to simulate ordinal data.
 
 The topic of our analysis will be the effect of parenting style measured in the 5th MoBa questionnaire on some outcomes measured in 5 year questionnaire.
 
