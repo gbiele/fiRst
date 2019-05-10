@@ -1,0 +1,200 @@
+---
+title: "A short introduction into ggplot"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+## Plotting in R
+
+The R language allows to produce sophisticated plots already with what is called "base R", i.e. without loading any additional packages. However, using base R function to plot data in the data exploration phase can be cumbersome, because one would often have to write many codes of lines to produce plots that are still relatively simple. In comparison, the package `ggplot`` allows to produce informative plots in a few lines of code, which has made it the probably most popular approach to plotting data in R.
+
+The __gg__ in `ggplot` stands for [gammar of graphics](https://www.amazon.com/Grammar-Graphics-Statistics-Computing/dp/0387245448). A grammar of graphics "is a tool that enables us to concisely describe the components
+of a graphic" [(Wickham, 2010)](https://vita.had.co.nz/papers/layered-grammar.pdf) and in the case of ggplot has following key components:
+
+* __Data__
+* __Mapping__, that is a link between aspects of the data and aesthetic features of the plot (e.g. color, shape)
+* __Statistical transformation__, which is just some manipulation of the data before it is plotted and can include aggregating data or also no transformation at all
+* __Geometric objects__ like lines, points or polygons that are used to represent the data and 
+* __position adjustment__ , which can be used to determine the relative position of geometric objects.
+
+Together, these components make up what `ggplot`calls a __layer__, and what most people would call a plot. The reason that ggplot calls a combination of such components a layer is that one plot can consist of multiple layers.
+
+In addition, all layers of a plot typically share additional components:
+
+* The __scale__ controls how data are mapped to aesthetic attributes, for example how categories are mapped to colors or different types of points.
+* The __coordinate system__ controls which variable is shown along which dimension of the coordinate system.
+* Finally, __facetting__ allows to easily repeat the same plot for different data-subset.
+
+
+At the moment, the grammar of graphics probably appears quite abstract and more useful as organizing principles for somebody _writing_ software to make plots as for somebody who want to _use_ a software package to make plots. However, we will soon see that ggplot also makes it easy for the user. A first step into this direction is describe the general pattern for a command to plot with ggplot, which is as follows:
+
+```{r, eval = FALSE}
+ggplot(my_data,
+       aes(x = variable_on_x_axis,
+           y = variable_on_y_axis)) + 
+  geom_point()
+```
+
+This is a very basic command that does for example not specify aesthetics, for which ggplot will then use default values. 
+
+Of course, this is a very simple plot, which would actually be easier to do in base R (`plot(my_data$variable_on_x_axis,my_data$variable_on_y_axis)`), but the nice thing with `ggplot` is that we can easily add features to the plot, like coloring points by group membership, and make different types of plot by choosing [different](http://sape.inf.usi.ch/quick-reference/ggplot2/geom) [geoms](https://ggplot2.tidyverse.org/reference/).
+
+In the following, we will go by example through the most important types of plots and ways to add features to a plot. As in a previous session we use some synthetic MoBa data to do this. 
+
+```{r}
+library(ggplot2)
+load("data/mysdata.Rdata")
+names(my_data)
+```
+
+This are data about parenting style (positive, inconsistent) at child age 5, mental health symptoms at child age 8, OD-SPRAAK, and a number of co-variates.
+
+
+A histogram is always a good first step to explore data:
+
+```{r}
+ggplot(my_data,
+       aes(x = ADHD)) + 
+  geom_histogram()
+```
+
+Here we get a warning that the number of bins was chosen automatically, which we can adjust. We also can use an aesthetic to compare boys and girls.
+
+```{r}
+ggplot(my_data,
+       aes(x = ADHD,
+           fill = gender)) + 
+  geom_histogram(bins = 54)
+```
+
+That's not great, we need to adjust the horizontal position of the histogram bars:
+
+
+```{r}
+ggplot(my_data,
+       aes(x = ADHD,
+           fill = gender)) + 
+  geom_histogram(bins = 54,
+                 position = "dodge")
+```
+
+Before we move on, note two things:
+
+* one adds elements to a ggplot object by using `+` 
+* ggplot will use defaults to generate a plot when scales (in the example above for gender) are not defined explicitly. 
+
+
+If we want to compare more than two groups, we can use more compact data representations like boxplots:
+
+```{r}
+ggplot(my_data,
+       aes(x = mEDU,
+           y = ADHD)) + 
+  geom_boxplot()
+```
+
+Can ggplot do boxplots with notches? To figures this out just Google [ggplot boxplot notch](https://ggplot2.tidyverse.org/reference/geom_boxplot.html). When we are at it, lets also add a comparison by gender:
+
+```{r}
+ggplot(my_data,
+       aes(x = mEDU,
+           y = ADHD,
+           color = gender)) + 
+  geom_boxplot(notch = T)
+```
+
+This plot implicitly shows you that the aesthetics "color" and "fill" determine the color of outline and are of geometric objects.
+
+As a last summary for uni-variate data lets look at error-bars. To make such a plot, we first have to calculate some statistics, for which we use the `dplyr` package:
+
+```{r}
+library(dplyr)
+
+plot_data = 
+my_data %>%
+  select(mEDU,mAge) %>%
+  group_by(mEDU) %>%
+  summarize(m = mean(mAge),
+            se = sd(mAge)/sqrt(n()-1)*1.96) %>%
+  mutate(CIlower = m - 1.96*se,
+         CIupper = m + 1.96*se)
+```
+
+Now we can plot error-bars:
+
+```{r}
+ggplot(plot_data, aes(x = mEDU,y = m)) +
+  geom_bar(stat = "identity") + 
+  geom_errorbar(mapping = aes(ymin = CIlower,
+                    ymax = CIupper))
+```
+
+Of course, we can also plot error bars around points:
+
+```{r}
+ggplot(plot_data, aes(x = mEDU,y = m)) +
+  geom_point() + 
+  geom_errorbar(mapping = aes(ymin = CIlower,
+                    ymax = CIupper))
+```
+
+
+So far, we have only had single plots, whereby the last plot had multiple layers. I find the ability to easily produce _subplots_ a key advantage of ggplot. Here is an example, again after some pre-processing:
+
+```{r}
+library(dplyr)
+
+ggplot(my_data, aes(x = birthmonth,
+                    y = ADHD)) +
+  geom_boxplot(outlier.shape = NA) + 
+  facet_wrap(~mEDU)
+
+```
+
+Of course, we can combine this with other mappings:
+```{r}
+library(dplyr)
+
+ggplot(my_data, aes(x = birthmonth,
+                    y = ADHD,
+                    fill = gender)) +
+  geom_boxplot(outlier.shape = NA) + 
+  facet_wrap(~mEDU)
+
+```
+
+
+Finally, lets look at possibilities to plot covariations:
+
+```{r}
+ggplot(my_data, aes(x = ADHD, y = OD)) + 
+  geom_point()
+```
+
+We don't see a lot here, because there is only a limited number of values for each variable. One way to highlight the strength of the association is to plot a regression lines:
+
+```{r}
+ggplot(my_data, aes(x = ADHD, y = OD)) + 
+  geom_point() + 
+  geom_smooth() +
+  geom_smooth(method = "lm", color = "red")
+```
+
+However, there are better ways to look at the bi-variate distribution:
+
+```{r}
+ggplot(my_data, aes(x = ADHD, y = OD)) + 
+  geom_bin2d(binwidth = c(1,1)) 
+```
+
+```{r}
+ggplot(my_data, aes(x = ADHD, y = OD)) + 
+  geom_jitter() 
+```
+
+This was only a short overview over the most important plots. Other topics you might want to look at is 
+
+* ggplot themes, which change the appearance of plots
+* more generally, https://www.ggplot2-exts.org/ presents many extensions of ggplot. 
