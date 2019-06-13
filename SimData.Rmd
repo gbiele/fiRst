@@ -1,0 +1,392 @@
+---
+title: "SimulatingData"
+author: "Guido Biele"
+date: "6/13/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+In this document we will briefly look at how to simulate data and R, which we will use to estimate the statistical power (1-\beta) for linear mixed models. In particular, we will build up complexity by going through folloing steps:
+
+* Simulating univarite data in R
+* Simulating multivariate data in R
+* Estimating power in linear regression
+* Estimating power in a hierarchical linear regression
+
+## Simulating univariate data in R
+
+A basic way to simulate data in R is to simulate data from a distributions. For example 
+
+```{r}
+rdata = rnorm(50, mean = 100, sd = 15)
+```
+
+generates 100 random numbers from a normal distribution with a mean of 100 and a standard deviation of 10. We can plot and verify this:
+
+```{r}
+hist(rdata)
+mean(rdata)
+sd(rdata)
+```
+
+As we can see, the mean is not exactly 100 and the standard deviation is not exactly 15. This is expected with such a small sample size. However, if we redo this many times, we see that the mean of our means is 0:
+
+```{r}
+K = 10000
+means = vector(length = K)
+sds = vector(length = K)
+for (k in 1:K) {
+  rd = rnorm(50,mean = 100, sd = 15)
+  sds[k] = sd(rd)
+  means[k] = mean(rd)
+}
+mean(means)
+mean(sds)
+```
+
+And the standard error of our estimates are:
+
+```{r}
+sd(means)
+sd(sds)
+```
+
+Note that the standard deviation of our means is simply $\frac{sd}{\sqrt{N}}$ '15/sqrt(50)' ([there is not such formula for the standard error of the standard deviation](https://stats.stackexchange.com/questions/156518/what-is-the-standard-error-of-the-sample-standard-deviation)). 
+
+The key thing to remember here is that we can generate random data from a distribution in r by using a function that has the form r<b>_dist_</b> , where <b>_dist_</b> is the name or abbreviation for a distribution. For example
+
+* `rnorm` gnerates normally distributed data
+* `rbinom` generates data from a binomial distribution 
+* `rpoiss` generates data from a poisson distribution
+
+[Here](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/Distributions.html) is a list of distributions that can be found in base R. [Additional packages](https://cran.r-project.org/web/views/Distributions.html) provide more distributions.
+
+The basic distributions we have looked at so far are univariate, because they to not allow us to specify relationships between multiple variables from that distributions. To see this, we can simply plot to vectors of normally distributed data and add a regression line:
+
+```{r}
+v1 = rnorm(500)
+v2 = rnorm(500)
+plot(v1,v2)
+abline(lm(v2~v1))
+```
+
+## Simulating multivariate data in R
+
+### A vary basic example for a data generative model
+
+In we want to simulate dependent data, one way is to say explicitely what the data generating process is and simulate the data accordingly. For example, if we assume that variable 'x' explains 50% of the variance of y, we can simply write:
+
+```{r}
+x = rnorm(1000)
+e = rnorm(1000)
+y = x+e
+```
+
+This will produce variables x and y, which are correlated with r = .707:
+
+```{r}
+plot(x,y,
+     main = paste("r=",cor(x,y)))
+```
+
+How do we know that the correlation should be .707? Because in our simple model `x` explains 50% of the variance of `y`. (`e` and `y` have the same standard deviation, and their weights are equal, which is easier to see if we write `y = 1*y + 1*e`.) The relationship between correlation and explained variance is $r = \sqrt{explained\ variance}$, so that can say $r = sqrt(.5)$, or in R  `sqrt(.5)` =  `r sqrt(.5)`.
+
+### Simulating correlated responses to licker scales.
+
+However, we are typically thinking in terms of correlations or covariances, and not neccesarly in terms of explain variance, and we sometimes have multiple variables for which we want to describe their relationship. In R, we can use the `rmvnorm` function from the `mvtnorm` package to generate multivarite data. Let us for example say that we want to simulate 5 items from a Likert scale with 5 response categories, such that that between item correlations are $r \sim 0.7$. To do this, we 
+
+* first generate correlated normally distributed variables
+* and than transform these normally distributed variables into ordinal responses.
+
+Lets start with generating 5 normally distributed variables. Type `?rmvnorm` in the Console to see how to use the functions. We need
+
+* `n`, the number of observations
+* `mean` a vector with means for the variables
+* `sigma` the covarinace matrix.
+
+The mean vector is easy:
+
+```{r}
+k = 5
+m = rep(0,k)
+```
+
+
+Covariance matrix is a symmetrix matrix, where values in the main diagonal are the variances and those in the off diagonal are the co-variances. For example:
+
+```{r}
+sigma = matrix(NA,ncol = k, nrow = k)
+sigma
+```
+
+generates a matrix with only NAs. Now we can set all variances to be 1 by:
+
+```{r}
+diag(sigma) = 1
+sigma
+```
+
+If all variances are 1, the covarince matrix is also a correlation matrix. Next we set all covariances to be around .7. Note that with k variables, we have `(k^2-k)/2` = 10 covariances:
+
+```{r}
+sigma[lower.tri(sigma)] = .7 + (runif(10)-.5)/20
+sigma
+```
+
+
+Now that we have filled the lower triangle, we need to fill the upper triangle so that everything is symmetric (`sigma[2,3] = sigma[3,2])).
+
+```{r}
+sigma[upper.tri(sigma)] = t(sigma)[upper.tri(sigma)]
+sigma
+```
+
+This was already the hardest part, because generating the multivariate normal distributions is now simply:
+
+```{r}
+library(mvtnorm)
+mvdata = rmvnorm(500,mean = m, sigma = sigma)
+cor(mvdata)
+round(cor(mvdata)-sigma,digits = 2)
+```
+
+The last step is to get ordered categorical data from this. Item response models simply assume that there is an underlying latent ability, and cut points that split the continuous ability into discrete levels. Lets assume the all items have the same difficulty level and discriminate at the same abaility levels, i.e. lets give all items the same cut points:
+
+```{r}
+cut_points = c(-Inf,1,1.5,2,Inf)
+
+likert_items = data.frame(mvdata)
+for (v in 1:k)
+  likert_items[,v] = cut(likert_items[,v],
+                         breaks = cut_points,
+                           ordered_result = T)
+
+```
+
+Any idea how this data might look like? Lets see:
+
+```{r}
+barplot(table(likert_items[,1]))
+```
+
+So this looks a lot like items from clinical scales, which do not discriminate in the bulk of the distribution (all values below 1 here). What simulation can teach us here is that if we use the proper way to describe the covariation between these variables (polychoric correlation) we can more or less recover it correctly. However, if we just treat it as a simple numeric variable, we underestimate the correlation between variables:
+
+```{r}
+library(polycor)
+nc = pc = matrix(NA,ncol = k,nrow = k)
+for (j in 1:(k-1)) {
+  for (i in (j+1):k) {
+    pc[i,j] = pc[j,i] = polychor(likert_items[,i],
+                                 likert_items[,j])
+    nc[i,j] = nc[j,i] = cor(as.numeric(likert_items[,i]),
+                            as.numeric(likert_items[,j]))
+  }
+}
+pcs = pc[lower.tri(sigma)]
+ncs = nc[lower.tri(sigma)]
+truth = sigma[lower.tri(sigma)]
+
+plot(truth,pcs, ylim = range(c(ncs,pcs)))
+points(truth,ncs, col = "red", pch = "x")
+abline(0,1, col = "green4", lwd = 2)
+abline(lm(ncs~truth), lty = 2, col = "red")
+abline(lm(pcs~truth), lty = 2)
+```
+
+The green line is the identity line, which shows us that using somple Pearson correlation severely underestimates the true correlations.
+
+## Calculating power by simulation
+
+Statistical power is related to errors in statistical inference. Here the Type I error is a failure to reject the H0 when it is true (\alpha). The Type II error is the failure to reject the H0 when it is in fact false (\beta). Statistical power is then defined as 1-\beta, and colloquially names as the probability to detect an effect if there is one. I asy "colloquially" here, because this statement is strictly speaking incorrect, as null hypothesis testing does not allow to make statements about the presence of an effect (NHST only allows statements about the probability of the observed data, given the H0 is true). Before we finally do some simulations, I'll add that while we use statistical power as an example to learn about simulating data in R, I'd not do NHST but Bayesian statistics.
+
+Anyhow, with this out of the way, here is the general procedure to estimate statistcial power of a regression analysis by simulation:
+
+1. we determine important variables, in particular the sample size, the covariation of all explanatory variables,and the regression weights. In the latter, the regression coefficient for our exposure, which must not be 0, is the effect size for which we want to obtain a power estimates.
+2. We repeat following steps many times
+    + simulate data given the variables defined in step 1
+    + check if the regression coefficient for our exposure variables is significant 
+3. We calculate power as the proportion of tests in step 2. that were significant.
+
+OK, lets fix some variables:
+
+```{r}
+N = 5000
+number_covariates = 3
+effect_size = .3
+effect_size_covariates = .1
+beta = c(effect_size,
+         rep(effect_size_covariates,number_covariates))
+
+cov_exposure_covariates = .01
+cov_covariates = .15
+
+k = 1 + number_covariates
+```
+
+With this information, we can build our covariance matrix:
+```{r}
+sigma = matrix(NA,
+               nrow = k,
+               ncol = k)
+
+diag(sigma) = 1
+sigma[1,2:k] = sigma[2:k,1] = cov_exposure_covariates
+sigma[is.na(sigma)] = cov_covariates
+```
+
+Which we then can use to generate our predictors X, 
+```{r}
+X = rmvnorm(N,
+            mean = rep(0,k),
+            sigma = sigma)
+y =  X %*% beta + rnorm(N)
+dta = data.frame(cbind(y,X))
+names(dta) = c("y","x", paste0("cov",1:3))
+```
+
+To check that we crated data as intended, we can run a linear regression and look at the coefficients, which should be identical with the variables `effect_size` and `cov_exposure_outcomes`:
+
+```{r}
+rbind(
+coef(lm(y~x + cov1 + cov2 + cov3, dta))[-1],
+beta)
+```
+
+This looks good. To repeatedly do this, we can package these steps into functions.
+
+A function to generate data, given parameters:
+
+```{r}
+make_lm_data = function(effect_size, N = 100, effect_size_covariates = 0, number_covariates = 3, cov_exposure_covariates = 0) {
+  beta = c(effect_size,
+           rep(effect_size_covariates,number_covariates))
+  
+  k = 1 + number_covariates
+  sigma = matrix(NA,
+                 nrow = k,
+                 ncol = k)
+  diag(sigma) = 1
+  sigma[1,2:k] = sigma[2:k,1] = cov_exposure_covariates
+  sigma[is.na(sigma)] = cov_covariates
+  
+  X = rmvnorm(N,
+              mean = rep(0,k),
+              sigma = sigma)
+  
+  y =  X %*% beta + rnorm(N)
+  dta = data.frame(cbind(y,X))
+  names(dta) = c("y","x", paste0("cov",1:number_covariates))
+  return(dta)
+}
+```
+
+A function to fit a linear regression and extract the pvalue for the exposure x.
+```{r}
+get_pval = function(dta,f) {
+  lmfit = lm(f,dta)
+  return(summary(lmfit)$coefficients["x",4])
+}
+```
+
+And a function that uses the first to function to repeatedly generate data, fit the linear regression, and extract the relevant p-value.
+```{r}
+sim_power = function(effect_size, N = 100, k = 500, effect_size_covariates = .1, number_covariates = 3, cov_exposure_covariates = 0, print.power = T) {
+  
+  f = as.formula(paste("y ~ x + ",
+                       paste0("cov",1:number_covariates, collapse = " + ")))
+  
+  pvals = vector(length = k)
+  for (i in 1:k) {
+    dta = make_lm_data(effect_size,
+                     N,
+                     effect_size_covariates = effect_size_covariates,
+                     number_covariates = number_covariates,
+                     cov_exposure_covariates = cov_exposure_covariates)
+    pvals[i] = get_pval(dta,f)
+  }
+  if (print.power == T) 
+    print(paste("Power =", mean(pvals<.05)))
+  return(pvals)
+}
+```
+
+Now we can estimate the power for different parameter configurations. Lets start with an effect size of 0.1 and N = 100:
+
+```{r}
+pvals = sim_power(effect_size = .1,
+                  N = 100)
+```
+
+We can increase sample size or effect size:
+
+```{r}
+pvals = sim_power(effect_size = .2,
+                  N = 100)
+pvals = sim_power(effect_size = .1,
+                  N = 500)
+```
+
+
+And we can plot how power changes when we fix one and let the other vary:
+
+```{r}
+Ns = c(50, 100, 250, 500, 1000, 2500)
+ess = c(.05, .075, .1, .15, .2)
+
+power_stats = c()
+for (N in Ns) {
+  for (es in ess) {
+    pvals = sim_power(effect_size = es, N = N, print.power = F)
+    power = mean(pvals < .05)
+    power_stats = rbind(power_stats,
+                        c(N, es, power))
+  }
+}
+power_stats = data.frame(power_stats)
+names(power_stats) = c("N","es","power")
+```
+
+Lets plot this: 
+
+```{r}
+library(ggplot2)
+ggplot(power_stats, aes(x = N, y = power, color = factor(es))) + 
+  geom_line() +
+  geom_hline(yintercept = .8)
+```
+
+This analysis assumed that the three covariates were independent of the exposure and had a small effect on the outcome. Lets change that and assume a small correlation (r = .1) between exposure and covariates.
+
+```{r}
+power_stats_a = power_stats
+power_stats_a$covec = "0"
+
+power_stats = c()
+for (N in Ns) {
+  for (es in ess) {
+    pvals = sim_power(effect_size = es,
+                      N = N,
+                      cov_exposure_covariates = .3,
+                      print.power = F)
+    power = mean(pvals < .05)
+    power_stats = rbind(power_stats,
+                        c(N, es, power))
+  }
+}
+power_stats = data.frame(power_stats)
+names(power_stats) = c("N","es","power")
+power_stats_b = power_stats
+power_stats_b$covec = ".3"
+
+power_stats = rbind(power_stats_a,
+                    power_stats_b)
+
+ggplot(power_stats, aes(x = N, y = power, color = factor(es), lty = covec)) + 
+  geom_line() +
+  geom_hline(yintercept = .8)
+```
+
+And we see (as expected) that covariatin between exposure and adjustment variable reduces power.
