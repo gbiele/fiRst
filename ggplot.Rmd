@@ -57,7 +57,7 @@ A histogram is always a good first step to explore data:
 ```{r}
 ggplot(my_data,
        aes(x = ADHD)) + 
-  geom_histogram()
+  geom_histogram(binwidth = 1 )
 ```
 
 Here we get a warning that the number of bins was chosen automatically, which we can adjust. We also can use an aesthetic to compare boys and girls.
@@ -66,18 +66,20 @@ Here we get a warning that the number of bins was chosen automatically, which we
 ggplot(my_data,
        aes(x = ADHD,
            fill = gender)) + 
-  geom_histogram(bins = 54)
+  geom_histogram(bins = 53)
 ```
 
 That's not great, we need to adjust the horizontal position of the histogram bars:
 
 
 ```{r}
-ggplot(my_data,
+p = ggplot(my_data,
        aes(x = ADHD,
-           fill = gender)) + 
-  geom_histogram(bins = 54,
+           fill = gender)) 
+p = p + geom_histogram(bins = 53,
                  position = "dodge")
+p
+ggsave("my_fancy_plot.pdf",p)
 ```
 
 Before we move on, note two things:
@@ -117,18 +119,19 @@ my_data %>%
   select(mEDU,mAge) %>%
   group_by(mEDU) %>%
   summarize(m = mean(mAge),
-            se = sd(mAge)/sqrt(n()-1)*1.96) %>%
+            se = sd(mAge)/sqrt(n()-1)) %>%
   mutate(CIlower = m - 1.96*se,
          CIupper = m + 1.96*se)
+plot_data
 ```
 
 Now we can plot error-bars:
 
 ```{r}
-ggplot(plot_data, aes(x = mEDU,y = m)) +
+ggplot(plot_data, aes(x = mEDU, y = m)) +
   geom_bar(stat = "identity") + 
   geom_errorbar(mapping = aes(ymin = CIlower,
-                    ymax = CIupper))
+                              ymax = CIupper))
 ```
 
 Of course, we can also plot error bars around points:
@@ -146,8 +149,9 @@ So far, we have only had single plots, whereby the last plot had multiple layers
 ```{r}
 library(dplyr)
 
-ggplot(my_data, aes(x = birthmonth,
-                    y = ADHD)) +
+ggplot(my_data,
+       aes(x = birthmonth,
+           y = ADHD)) +
   geom_boxplot(outlier.shape = NA) + 
   facet_wrap(~mEDU)
 
